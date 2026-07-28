@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PortaSSH</title>
+  <link rel="stylesheet" href="vendor/xterm.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- ============ LOCK SCREEN ============ -->
+  <div id="lock" class="lock-screen">
+    <div class="lock-card">
+      <div class="brand">
+        <div class="brand-mark">⌘</div>
+        <div>
+          <h1>PortaSSH</h1>
+          <p class="tagline">Your keys. Your terminal. In your pocket.</p>
+        </div>
+      </div>
+
+      <form id="lock-form" autocomplete="off">
+        <label id="lock-label" for="master">Master password</label>
+        <div class="pw-row">
+          <input type="password" id="master" placeholder="••••••••••••" autofocus />
+          <button type="button" id="pw-toggle" class="ghost" title="Show/hide">👁</button>
+        </div>
+        <input type="password" id="master2" placeholder="Confirm password" style="display:none" />
+        <div id="lock-error" class="error"></div>
+        <button type="submit" id="lock-submit" class="primary">Unlock</button>
+      </form>
+
+      <div class="vault-path" id="vault-path"></div>
+    </div>
+    <div class="lock-footer">
+      Encrypted with AES-256-GCM · Argon2id · nothing leaves this device
+      <button id="btn-theme-lock" class="ghost icon tiny" title="Theme (follow system)">🖥️</button>
+    </div>
+  </div>
+
+  <!-- ============ MAIN APP ============ -->
+  <div id="app" class="app hidden">
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <div class="brand-mark small">⌘</div>
+        <span class="sidebar-title">PortaSSH</span>
+        <button id="btn-settings" class="ghost icon" title="Settings">⚙️</button>
+        <button id="btn-theme" class="ghost icon" title="Theme (follow system)">🖥️</button>
+        <button id="btn-lock" class="ghost icon" title="Lock vault">🔒</button>
+      </div>
+
+      <div class="search-row">
+        <input id="search" type="text" placeholder="Search hosts…" />
+        <button id="btn-add" class="primary icon" title="New connection">＋</button>
+      </div>
+
+      <div id="cred-list" class="cred-list"></div>
+
+      <div class="sidebar-foot">
+        <button id="btn-help" class="ghost small-btn">⌨︎ Keyboard shortcuts</button>
+        <button id="btn-change-pw" class="ghost small-btn">Change master password</button>
+        <div class="hint-line">Press <kbd id="palette-hint">⌘K</kbd> to connect</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div id="tabs" class="tabs"></div>
+      <div id="terminals" class="terminals">
+        <div id="empty-state" class="empty-state">
+          <div class="empty-glyph">❯_</div>
+          <h2>No open sessions</h2>
+          <p>Pick a host from the left, or press <kbd>＋</kbd> to add one.</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ============ CREDENTIAL EDITOR MODAL ============ -->
+  <div id="modal" class="modal-backdrop hidden">
+    <div class="modal">
+      <h2 id="modal-title">New connection</h2>
+      <form id="cred-form" autocomplete="off">
+        <input type="hidden" id="c-id" />
+        <div class="grid">
+          <div class="field span2">
+            <label>Name</label>
+            <input id="c-name" placeholder="Production web server" required />
+          </div>
+          <div class="field">
+            <label>Host</label>
+            <input id="c-host" placeholder="192.168.1.10 / example.com" required />
+          </div>
+          <div class="field">
+            <label>Port</label>
+            <input id="c-port" type="number" value="22" min="1" max="65535" />
+          </div>
+          <div class="field">
+            <label>User</label>
+            <input id="c-user" placeholder="root" required />
+          </div>
+          <div class="field">
+            <label>Auth method</label>
+            <select id="c-auth">
+              <option value="password">Password</option>
+              <option value="key">Private key</option>
+            </select>
+          </div>
+
+          <div class="field span2" data-auth="password">
+            <label>Password <span class="hint" id="pw-hint"></span></label>
+            <input id="c-password" type="password" placeholder="••••••••" />
+          </div>
+
+          <div class="field span2 hidden" data-auth="key">
+            <label>Private key (PEM) <span class="hint" id="key-hint"></span></label>
+            <textarea id="c-key" rows="5" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+          </div>
+          <div class="field span2 hidden" data-auth="key">
+            <label>Key passphrase <span class="hint">(optional)</span></label>
+            <input id="c-passphrase" type="password" placeholder="leave blank if none" />
+          </div>
+
+          <div class="field span2">
+            <label>Accent color</label>
+            <div id="color-row" class="color-row"></div>
+          </div>
+        </div>
+
+        <div id="modal-error" class="error"></div>
+        <div class="modal-actions">
+          <button type="button" id="btn-delete" class="danger hidden">Delete</button>
+          <div class="spacer"></div>
+          <button type="button" id="btn-cancel" class="ghost">Cancel</button>
+          <button type="submit" class="primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ CHANGE PASSWORD MODAL ============ -->
+  <div id="pw-modal" class="modal-backdrop hidden">
+    <div class="modal narrow">
+      <h2>Change master password</h2>
+      <form id="pw-form" autocomplete="off">
+        <div class="field">
+          <label>Current password</label>
+          <input id="pw-current" type="password" required />
+        </div>
+        <div class="field">
+          <label>New password</label>
+          <input id="pw-next" type="password" required />
+        </div>
+        <div class="field">
+          <label>Confirm new password</label>
+          <input id="pw-confirm" type="password" required />
+        </div>
+        <div id="pw-error" class="error"></div>
+        <div class="modal-actions">
+          <div class="spacer"></div>
+          <button type="button" id="pw-cancel" class="ghost">Cancel</button>
+          <button type="submit" class="primary">Update</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ SETTINGS ============ -->
+  <div id="settings" class="modal-backdrop hidden">
+    <div class="modal narrow">
+      <h2>Settings</h2>
+      <div class="field">
+        <label>Terminal font</label>
+        <select id="set-font"></select>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label>Font size <span class="hint" id="set-size-val"></span></label>
+          <input id="set-size" type="range" min="10" max="22" step="0.5" />
+        </div>
+        <div class="field">
+          <label>Line height <span class="hint" id="set-lh-val"></span></label>
+          <input id="set-lh" type="range" min="1" max="1.8" step="0.05" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Preview</label>
+        <div id="set-preview" class="font-preview">const ok = (a,b) =&gt; a &gt;= b ? "✓" : "✗";  // 0O1lI |-&gt;</div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="set-reset" class="ghost">Reset to defaults</button>
+        <div class="spacer"></div>
+        <button type="button" id="set-close" class="primary">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ COMMAND PALETTE ============ -->
+  <div id="palette" class="palette-backdrop hidden">
+    <div class="palette">
+      <input id="palette-input" type="text" placeholder="Connect to a host, or type a command…" autocomplete="off" />
+      <div id="palette-list" class="palette-list"></div>
+      <div class="palette-foot">
+        <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+        <span><kbd>↵</kbd> select</span>
+        <span><kbd>esc</kbd> close</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SHORTCUTS HELP ============ -->
+  <div id="help" class="modal-backdrop hidden">
+    <div class="modal">
+      <h2>Keyboard shortcuts</h2>
+      <div id="help-grid" class="help-grid"></div>
+      <div class="modal-actions">
+        <div class="spacer"></div>
+        <button type="button" id="help-close" class="primary">Got it</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="vendor/xterm.js"></script>
+  <script src="vendor/addon-fit.js"></script>
+  <script src="vendor/addon-weblinks.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

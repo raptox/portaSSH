@@ -1,0 +1,18 @@
+# Compiled binaries
+/portassh
+/portassh.exe
+/dist/
+*.exe
+
+# Local runtime data — NEVER commit secrets
+*.vault
+known_hosts
+browser-profile/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+
+# Local tooling
+node_modules/
