@@ -40,9 +40,10 @@ func main() {
 	}
 	vaultPath := filepath.Join(dataDir, "portassh.vault")
 	hostKeysPath := filepath.Join(dataDir, "known_hosts")
+	prefsPath := filepath.Join(dataDir, "portassh.prefs.json")
 
 	v := vault.New(vaultPath)
-	srv := server.New(v, hostKeysPath)
+	srv := server.New(v, hostKeysPath, prefsPath)
 
 	// Bind explicitly so we can refuse anything but loopback.
 	host, _, _ := net.SplitHostPort(*addr)

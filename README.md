@@ -50,6 +50,12 @@ Plug in the stick, run it, unlock with your master password, and you're home.
 - 🔤 **Seven bundled coding fonts** — JetBrains Mono, Fira Code, Cascadia Code,
   IBM Plex Mono, Source Code Pro, Roboto Mono, and system monospace — all
   embedded, all offline. Tune font, size, and line-height in **Settings**.
+- 🌈 **Terminal colour schemes** — nine popular presets (Dracula, Nord, One Dark,
+  Monokai, Gruvbox, Solarized Dark/Light, Tomorrow Night, GitHub Light) plus
+  custom **background / foreground** colour pickers.
+- 💾 **Settings that persist** — all preferences are saved in a JSON file *next to
+  the vault*, so they survive restarts and travel with the stick (not tied to the
+  browser or the random port).
 - 🛡️ **Isolated by default** — launches in an **extension-free browser window**
   with a dedicated profile, so your everyday browser's extensions can't observe
   the page. Loopback-only, gated behind a per-launch session token.
@@ -62,7 +68,7 @@ Plug in the stick, run it, unlock with your master password, and you're home.
 |---|---|
 | **Locked vault** — Argon2id + AES‑256‑GCM | **Your hosts, colour-coded** |
 | <img src="assets/01-lock.png" width="420"> | <img src="assets/02-app-dark.png" width="420"> |
-| **Command palette** — connect in two keystrokes | **Settings** — fonts, size, spacing (live) |
+| **Command palette** — connect in two keystrokes | **Settings** — fonts, themes & colours (live, persisted) |
 | <img src="assets/03-palette.png" width="420"> | <img src="assets/04-settings.png" width="420"> |
 | **Shortcuts overlay** — platform-aware | **Light mode** — follows your system |
 | <img src="assets/05-shortcuts.png" width="420"> | <img src="assets/06-app-light.png" width="420"> |

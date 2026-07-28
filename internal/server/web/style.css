@@ -296,6 +296,15 @@ input[type="range"]::-webkit-slider-thumb {
 }
 input[type="range"]:focus { box-shadow: 0 0 0 3px rgba(110,168,254,.15); }
 
+.color-input { height: 40px; padding: 4px; cursor: pointer; }
+.color-input::-webkit-color-swatch-wrapper { padding: 0; }
+.color-input::-webkit-color-swatch { border: none; border-radius: 6px; }
+.linkbtn {
+  background: none; border: none; color: var(--accent); font-family: var(--font);
+  font-size: 11px; cursor: pointer; padding: 0; margin-left: 8px; text-transform: none; letter-spacing: 0;
+}
+.linkbtn:hover { text-decoration: underline; }
+
 /* ============ Command palette ============ */
 .palette-backdrop {
   position: fixed; inset: 0; background: rgba(4,6,12,.55);

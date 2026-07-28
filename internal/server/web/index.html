@@ -186,7 +186,21 @@
         </div>
       </div>
       <div class="field">
-        <label>Preview</label>
+        <label>Terminal theme</label>
+        <select id="set-termtheme"></select>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label>Background</label>
+          <input id="set-bg" type="color" class="color-input" />
+        </div>
+        <div class="field">
+          <label>Foreground</label>
+          <input id="set-fg" type="color" class="color-input" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Preview <button type="button" id="set-reset-colors" class="linkbtn">reset colours to theme</button></label>
         <div id="set-preview" class="font-preview">const ok = (a,b) =&gt; a &gt;= b ? "✓" : "✗";  // 0O1lI |-&gt;</div>
       </div>
       <div class="modal-actions">

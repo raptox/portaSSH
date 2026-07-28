@@ -9,12 +9,17 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"io"
 	"io/fs"
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gorilla/websocket"
 
@@ -30,15 +35,20 @@ type Server struct {
 	mux       *http.ServeMux
 	upgrader  websocket.Upgrader
 	loopbacks map[string]bool
+
+	prefsPath string     // UI preferences file (non-secret) beside the vault
+	prefsMu   sync.Mutex // guards prefs file writes
 }
 
-// New constructs a Server. token gates all requests; hostKeysPath stores TOFU keys.
-func New(v *vault.Vault, hostKeysPath string) *Server {
+// New constructs a Server. token gates all requests; hostKeysPath stores TOFU
+// keys; prefsPath persists non-secret UI preferences (theme, font, colors).
+func New(v *vault.Vault, hostKeysPath, prefsPath string) *Server {
 	s := &Server{
-		vault:    v,
-		hostKeys: sshx.NewHostKeyStore(hostKeysPath),
-		token:    newToken(),
-		mux:      http.NewServeMux(),
+		vault:     v,
+		hostKeys:  sshx.NewHostKeyStore(hostKeysPath),
+		prefsPath: prefsPath,
+		token:     newToken(),
+		mux:       http.NewServeMux(),
 		upgrader: websocket.Upgrader{
 			// Only same-origin (our own loopback page) may open sockets.
 			CheckOrigin: func(r *http.Request) bool {
@@ -74,6 +84,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/vault/unlock", s.auth(s.handleUnlock))
 	s.mux.HandleFunc("/api/vault/lock", s.auth(s.handleLock))
 	s.mux.HandleFunc("/api/vault/password", s.auth(s.handleChangePassword))
+	s.mux.HandleFunc("/api/prefs", s.auth(s.handlePrefs))
 	s.mux.HandleFunc("/api/creds", s.auth(s.handleCreds))
 	s.mux.HandleFunc("/api/creds/", s.auth(s.handleCredByID))
 	s.mux.HandleFunc("/api/ws", s.auth(s.handleWS))
@@ -151,6 +162,53 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+var errInvalidJSON = errors.New("invalid JSON")
+
+// --- preferences (non-secret UI settings, persisted beside the vault) ---
+
+// handlePrefs reads or writes the UI preferences blob. Prefs are not secret
+// (theme, font, terminal colors), so they live in a plaintext JSON file that
+// travels with the vault — surviving restarts regardless of the random port.
+func (s *Server) handlePrefs(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		data, err := os.ReadFile(s.prefsPath)
+		if err != nil || len(data) == 0 || !json.Valid(data) {
+			data = []byte("{}")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write(data)
+	case http.MethodPut:
+		body, err := io.ReadAll(io.LimitReader(r.Body, 64*1024))
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err)
+			return
+		}
+		if !json.Valid(body) {
+			writeErr(w, http.StatusBadRequest, errInvalidJSON)
+			return
+		}
+		s.prefsMu.Lock()
+		defer s.prefsMu.Unlock()
+		if dir := filepath.Dir(s.prefsPath); dir != "" {
+			_ = os.MkdirAll(dir, 0o700)
+		}
+		tmp := s.prefsPath + ".tmp"
+		if err := os.WriteFile(tmp, body, 0o600); err != nil {
+			writeErr(w, http.StatusInternalServerError, err)
+			return
+		}
+		if err := os.Rename(tmp, s.prefsPath); err != nil {
+			writeErr(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 // --- credential handlers ---

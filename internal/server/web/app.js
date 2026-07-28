@@ -291,8 +291,73 @@ const XTERM_THEMES = {
     brightCyan: "#06b6d4", brightWhite: "#1a1e29",
   },
 };
-function xtermTheme() {
-  return XTERM_THEMES[effectiveTheme()] || XTERM_THEMES.dark;
+// preset(bg, fg, cursor, selection, [16 ansi colors]) -> xterm theme object.
+function preset(bg, fg, cursor, sel, a) {
+  return {
+    background: bg, foreground: fg, cursor: cursor, cursorAccent: bg, selectionBackground: sel,
+    black: a[0], red: a[1], green: a[2], yellow: a[3], blue: a[4], magenta: a[5], cyan: a[6], white: a[7],
+    brightBlack: a[8], brightRed: a[9], brightGreen: a[10], brightYellow: a[11],
+    brightBlue: a[12], brightMagenta: a[13], brightCyan: a[14], brightWhite: a[15],
+  };
+}
+
+// Popular, recognisable terminal colour schemes.
+const TERM_PRESETS = {
+  dracula:   preset("#282a36", "#f8f8f2", "#f8f8f2", "#44475a", ["#21222c","#ff5555","#50fa7b","#f1fa8c","#bd93f9","#ff79c6","#8be9fd","#f8f8f2","#6272a4","#ff6e6e","#69ff94","#ffffa5","#d6acff","#ff92df","#a4ffff","#ffffff"]),
+  nord:      preset("#2e3440", "#d8dee9", "#d8dee9", "#434c5e", ["#3b4252","#bf616a","#a3be8c","#ebcb8b","#81a1c1","#b48ead","#88c0d0","#e5e9f0","#4c566a","#bf616a","#a3be8c","#ebcb8b","#81a1c1","#b48ead","#8fbcbb","#eceff4"]),
+  onedark:   preset("#282c34", "#abb2bf", "#528bff", "#3e4451", ["#282c34","#e06c75","#98c379","#e5c07b","#61afef","#c678dd","#56b6c2","#abb2bf","#5c6370","#e06c75","#98c379","#e5c07b","#61afef","#c678dd","#56b6c2","#ffffff"]),
+  monokai:   preset("#272822", "#f8f8f2", "#f8f8f0", "#49483e", ["#272822","#f92672","#a6e22e","#f4bf75","#66d9ef","#ae81ff","#a1efe4","#f8f8f2","#75715e","#f92672","#a6e22e","#f4bf75","#66d9ef","#ae81ff","#a1efe4","#f9f8f5"]),
+  gruvbox:   preset("#282828", "#ebdbb2", "#ebdbb2", "#504945", ["#282828","#cc241d","#98971a","#d79921","#458588","#b16286","#689d6a","#a89984","#928374","#fb4934","#b8bb26","#fabd2f","#83a598","#d3869b","#8ec07c","#ebdbb2"]),
+  solardark: preset("#002b36", "#839496", "#93a1a1", "#073642", ["#073642","#dc322f","#859900","#b58900","#268bd2","#d33682","#2aa198","#eee8d5","#586e75","#cb4b16","#586e75","#657b83","#839496","#6c71c4","#93a1a1","#fdf6e3"]),
+  solarlight:preset("#fdf6e3", "#657b83", "#586e75", "#eee8d5", ["#073642","#dc322f","#859900","#b58900","#268bd2","#d33682","#2aa198","#eee8d5","#002b36","#cb4b16","#586e75","#657b83","#839496","#6c71c4","#93a1a1","#fdf6e3"]),
+  tomorrow:  preset("#1d1f21", "#c5c8c6", "#c5c8c6", "#373b41", ["#1d1f21","#cc6666","#b5bd68","#f0c674","#81a2be","#b294bb","#8abeb7","#c5c8c6","#969896","#cc6666","#b5bd68","#f0c674","#81a2be","#b294bb","#8abeb7","#ffffff"]),
+  github:    preset("#ffffff", "#24292e", "#24292e", "#c8e1ff", ["#24292e","#d73a49","#22863a","#b08800","#0366d6","#6f42c1","#1b7c83","#6a737d","#959da5","#cb2431","#28a745","#dbab09","#2188ff","#8a63d2","#3192aa","#d1d5da"]),
+};
+
+// Dropdown order + labels; "auto" follows the app's light/dark theme.
+const TERM_THEME_LIST = [
+  { id: "auto",       label: "Match app (auto)" },
+  { id: "dracula",    label: "Dracula" },
+  { id: "nord",       label: "Nord" },
+  { id: "onedark",    label: "One Dark" },
+  { id: "monokai",    label: "Monokai" },
+  { id: "gruvbox",    label: "Gruvbox Dark" },
+  { id: "solardark",  label: "Solarized Dark" },
+  { id: "solarlight", label: "Solarized Light" },
+  { id: "tomorrow",   label: "Tomorrow Night" },
+  { id: "github",     label: "GitHub Light" },
+];
+
+// termBaseTheme returns the palette for the current selection (before overrides).
+function termBaseTheme() {
+  const id = prefs.termTheme || "auto";
+  if (id === "auto") return XTERM_THEMES[effectiveTheme()] || XTERM_THEMES.dark;
+  return TERM_PRESETS[id] || XTERM_THEMES.dark;
+}
+
+// terminalTheme is the effective xterm theme: the chosen palette, with the
+// user's custom background/foreground overrides applied on top.
+function terminalTheme() {
+  const t = Object.assign({}, termBaseTheme());
+  if (prefs.termBg) { t.background = prefs.termBg; t.cursorAccent = prefs.termBg; }
+  if (prefs.termFg) t.foreground = prefs.termFg;
+  return t;
+}
+
+// effectiveTermColors returns the bg/fg shown in the colour pickers.
+function effectiveTermColors() {
+  const base = termBaseTheme();
+  return { bg: prefs.termBg || base.background, fg: prefs.termFg || base.foreground };
+}
+
+// applyTerminal pushes colours to every open terminal and the surrounding chrome.
+function applyTerminal() {
+  const t = terminalTheme();
+  document.documentElement.style.setProperty("--term-bg", t.background);
+  for (const s of state.sessions.values()) {
+    try { s.term.options.theme = t; s.fit.fit(); } catch {}
+  }
+  if (!$("settings").classList.contains("hidden")) refreshSettingsPreview();
 }
 
 let tabCounter = 0;
@@ -322,7 +387,7 @@ function openSession(cred) {
     fontSize: fs.size,
     lineHeight: fs.lineHeight,
     cursorBlink: true,
-    theme: xtermTheme(),
+    theme: terminalTheme(),
     allowProposedApi: true,
     scrollback: 10000,
   });
@@ -422,13 +487,45 @@ window.addEventListener("resize", () => {
 });
 
 /* ============================================================
-   THEME  (system-aware, with manual override persisted on the stick)
-   pref ∈ {"system","light","dark"} stored in localStorage.
+   PREFERENCES  (persisted server-side, beside the vault)
+   Because PortaSSH binds a *random* port each launch, the browser's
+   localStorage — keyed by origin (host:port) — can't survive a restart.
+   So all UI prefs live in a JSON file next to the vault and travel with
+   it on the stick. This object is the single source of truth.
    ============================================================ */
-const THEME_KEY = "portassh-theme";
+const PREF_DEFAULTS = {
+  theme: "system",        // app light/dark: "system" | "light" | "dark"
+  font: "jetbrains",
+  fontSize: 13.5,
+  lineHeight: 1.15,
+  termTheme: "auto",      // terminal palette: "auto" | preset id
+  termBg: "",             // optional custom background override (hex)
+  termFg: "",             // optional custom foreground override (hex)
+};
+let prefs = Object.assign({}, PREF_DEFAULTS);
+
+async function loadPrefs() {
+  try {
+    const p = await api("/api/prefs");
+    prefs = Object.assign({}, PREF_DEFAULTS, p && typeof p === "object" ? p : {});
+  } catch {
+    prefs = Object.assign({}, PREF_DEFAULTS);
+  }
+}
+let _saveTimer = null;
+function savePrefs() {
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    api("/api/prefs", { method: "PUT", body: JSON.stringify(prefs) }).catch(() => {});
+  }, 150);
+}
+
+/* ============================================================
+   THEME  (system-aware app light/dark, with manual override)
+   ============================================================ */
 const systemLight = window.matchMedia("(prefers-color-scheme: light)");
 
-function themePref() { return localStorage.getItem(THEME_KEY) || "system"; }
+function themePref() { return prefs.theme || "system"; }
 function effectiveTheme() {
   const p = themePref();
   if (p === "light" || p === "dark") return p;
@@ -446,17 +543,12 @@ function applyTheme() {
     const el = $(id);
     if (el) { el.textContent = icon; el.title = title; }
   }
-  // Live-update any open terminals.
-  const t = xtermTheme();
-  for (const s of state.sessions.values()) {
-    try { s.term.options.theme = t; s.fit.fit(); } catch {}
-  }
+  applyTerminal(); // "auto" terminal palette depends on the app theme
 }
 function cycleTheme() {
   const order = ["system", "light", "dark"];
-  const next = order[(order.indexOf(themePref()) + 1) % order.length];
-  if (next === "system") localStorage.removeItem(THEME_KEY);
-  else localStorage.setItem(THEME_KEY, next);
+  prefs.theme = order[(order.indexOf(themePref()) + 1) % order.length];
+  savePrefs();
   applyTheme();
 }
 function initTheme() {
@@ -467,9 +559,7 @@ function initTheme() {
 }
 
 /* ============================================================
-   FONTS & SETTINGS  (terminal font / size / line-height)
-   Persisted in localStorage, which lives in the browser profile
-   on the stick — so your look travels with you.
+   FONTS & SETTINGS  (terminal font / size / spacing / colours)
    ============================================================ */
 const FONTS = [
   { id: "jetbrains", label: "JetBrains Mono",  stack: '"JetBrains Mono", monospace' },
@@ -480,18 +570,12 @@ const FONTS = [
   { id: "roboto",    label: "Roboto Mono",     stack: '"Roboto Mono", monospace' },
   { id: "system",    label: "System monospace", stack: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' },
 ];
-const FONT_DEFAULTS = { font: "jetbrains", size: 13.5, lineHeight: 1.15 };
-
 function fontSettings() {
-  return {
-    font: localStorage.getItem("portassh-font") || FONT_DEFAULTS.font,
-    size: parseFloat(localStorage.getItem("portassh-fontsize")) || FONT_DEFAULTS.size,
-    lineHeight: parseFloat(localStorage.getItem("portassh-lineheight")) || FONT_DEFAULTS.lineHeight,
-  };
+  return { font: prefs.font, size: prefs.fontSize, lineHeight: prefs.lineHeight };
 }
 function fontStack(id) { return (FONTS.find((f) => f.id === id) || FONTS[0]).stack; }
 
-// applyFont pushes the current font settings to every open terminal, live.
+// applyFont pushes font settings to every open terminal, live.
 function applyFont() {
   const s = fontSettings();
   const stack = fontStack(s.font);
@@ -506,54 +590,90 @@ function applyFont() {
 }
 
 function openSettings() {
-  const sel = $("set-font");
-  sel.innerHTML = "";
-  const s = fontSettings();
+  // Font dropdown
+  const fsel = $("set-font");
+  fsel.innerHTML = "";
   for (const f of FONTS) {
     const o = document.createElement("option");
     o.value = f.id; o.textContent = f.label;
-    if (f.id === s.font) o.selected = true;
-    sel.appendChild(o);
+    if (f.id === prefs.font) o.selected = true;
+    fsel.appendChild(o);
   }
-  $("set-size").value = s.size;
-  $("set-lh").value = s.lineHeight;
+  // Terminal theme dropdown
+  const tsel = $("set-termtheme");
+  tsel.innerHTML = "";
+  for (const t of TERM_THEME_LIST) {
+    const o = document.createElement("option");
+    o.value = t.id; o.textContent = t.label;
+    if (t.id === prefs.termTheme) o.selected = true;
+    tsel.appendChild(o);
+  }
+  $("set-size").value = prefs.fontSize;
+  $("set-lh").value = prefs.lineHeight;
+  syncColorPickers();
   refreshSettingsPreview();
   $("settings").classList.remove("hidden");
 }
 
-function refreshSettingsPreview() {
-  const font = $("set-font").value;
-  const size = parseFloat($("set-size").value);
-  const lh = parseFloat($("set-lh").value);
-  $("set-size-val").textContent = size + "px";
-  $("set-lh-val").textContent = lh.toFixed(2);
-  const prev = $("set-preview");
-  prev.style.setProperty("--preview-font", fontStack(font));
-  prev.style.setProperty("--preview-size", size + "px");
-  prev.style.setProperty("--preview-lh", lh);
+// syncColorPickers points the bg/fg inputs at the current effective colours.
+function syncColorPickers() {
+  const c = effectiveTermColors();
+  $("set-bg").value = toHex6(c.bg);
+  $("set-fg").value = toHex6(c.fg);
 }
 
-function saveSettingsFromUI() {
-  localStorage.setItem("portassh-font", $("set-font").value);
-  localStorage.setItem("portassh-fontsize", $("set-size").value);
-  localStorage.setItem("portassh-lineheight", $("set-lh").value);
-  refreshSettingsPreview();
-  applyFont();
+function refreshSettingsPreview() {
+  $("set-size-val").textContent = prefs.fontSize + "px";
+  $("set-lh-val").textContent = Number(prefs.lineHeight).toFixed(2);
+  const c = effectiveTermColors();
+  const prev = $("set-preview");
+  prev.style.setProperty("--preview-font", fontStack(prefs.font));
+  prev.style.setProperty("--preview-size", prefs.fontSize + "px");
+  prev.style.setProperty("--preview-lh", prefs.lineHeight);
+  prev.style.background = c.bg;
+  prev.style.color = c.fg;
 }
 
 function initSettings() {
   $("btn-settings").addEventListener("click", openSettings);
   $("set-close").addEventListener("click", () => $("settings").classList.add("hidden"));
-  for (const id of ["set-font", "set-size", "set-lh"]) {
-    $(id).addEventListener("input", saveSettingsFromUI);
-  }
-  $("set-reset").addEventListener("click", () => {
-    localStorage.removeItem("portassh-font");
-    localStorage.removeItem("portassh-fontsize");
-    localStorage.removeItem("portassh-lineheight");
-    openSettings();
-    applyFont();
+
+  $("set-font").addEventListener("input", () => { prefs.font = $("set-font").value; savePrefs(); refreshSettingsPreview(); applyFont(); });
+  $("set-size").addEventListener("input", () => { prefs.fontSize = parseFloat($("set-size").value); savePrefs(); refreshSettingsPreview(); applyFont(); });
+  $("set-lh").addEventListener("input", () => { prefs.lineHeight = parseFloat($("set-lh").value); savePrefs(); refreshSettingsPreview(); applyFont(); });
+
+  // Terminal palette: switching a preset clears custom colour overrides.
+  $("set-termtheme").addEventListener("input", () => {
+    prefs.termTheme = $("set-termtheme").value;
+    prefs.termBg = ""; prefs.termFg = "";
+    savePrefs(); syncColorPickers(); applyTerminal();
   });
+  $("set-bg").addEventListener("input", () => { prefs.termBg = $("set-bg").value; savePrefs(); applyTerminal(); });
+  $("set-fg").addEventListener("input", () => { prefs.termFg = $("set-fg").value; savePrefs(); applyTerminal(); });
+  $("set-reset-colors").addEventListener("click", () => {
+    prefs.termBg = ""; prefs.termFg = "";
+    savePrefs(); syncColorPickers(); applyTerminal();
+  });
+
+  $("set-reset").addEventListener("click", () => {
+    Object.assign(prefs, {
+      font: PREF_DEFAULTS.font, fontSize: PREF_DEFAULTS.fontSize, lineHeight: PREF_DEFAULTS.lineHeight,
+      termTheme: PREF_DEFAULTS.termTheme, termBg: "", termFg: "",
+    });
+    savePrefs();
+    openSettings();
+    applyFont(); applyTerminal();
+  });
+}
+
+// toHex6 normalises a colour to #rrggbb for <input type="color">.
+function toHex6(c) {
+  if (typeof c !== "string") return "#000000";
+  let h = c.trim();
+  if (h[0] !== "#") h = "#" + h;
+  if (h.length === 4) h = "#" + h[1] + h[1] + h[2] + h[2] + h[3] + h[3]; // #rgb -> #rrggbb
+  if (h.length >= 7) return h.slice(0, 7).toLowerCase();
+  return "#000000";
 }
 
 /* ============================================================
@@ -772,9 +892,12 @@ function esc(str) {
 }
 
 /* ---------------- boot ---------------- */
-initTheme();
-initSettings();
-initShortcuts();
-initLock().catch((e) => {
+(async function boot() {
+  await loadPrefs();     // fetch persisted settings before first paint of theme
+  initTheme();           // applies theme + terminal colours from prefs
+  initSettings();
+  initShortcuts();
+  await initLock();
+})().catch((e) => {
   $("lock-error").textContent = "Failed to reach PortaSSH backend: " + e.message;
 });
