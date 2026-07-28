@@ -45,17 +45,18 @@ Plug in the stick, run it, unlock with your master password, and you're home.
 - ⌨️ **Keyboard-first workflow** — a **command palette** (`⌘K` / `Ctrl+Shift+K`)
   to fuzzy-search and connect, plus shortcuts for everything. Built for people
   who live in the terminal.
-- 🎨 **Beautiful, modern UI** — glassy dark theme, **light/dark that follows your
-  system** (with manual override), and a built-in shortcuts overlay.
+- 🎨 **Beautiful, modern UI** — ships in a polished **Dracula** theme by default,
+  with a *System (auto)* option that follows your OS, and a built-in shortcuts
+  overlay.
 - 🔤 **Seven bundled coding fonts** — JetBrains Mono, Fira Code, Cascadia Code,
   IBM Plex Mono, Source Code Pro, Roboto Mono, and system monospace — all
   embedded, all offline. Tune font, size, and line-height in **Settings**.
 - 🌈 **Terminal colour schemes** — nine popular presets (Dracula, Nord, One Dark,
   Monokai, Gruvbox, Solarized Dark/Light, Tomorrow Night, GitHub Light) plus
   custom **background / foreground** colour pickers.
-- 🖌️ **Whole-app theming** — apply any of those schemes (or System / Light / Dark)
-  to the *entire* interface, not just the terminal. The UI palette is derived
-  live from the scheme, and the terminal follows along automatically.
+- 🖌️ **Whole-app theming** — apply any of those schemes (or *System (auto)*) to
+  the *entire* interface, not just the terminal. The UI palette is derived live
+  from the scheme, and the terminal follows along automatically.
 - 💾 **Settings that persist** — all preferences are saved in a JSON file *next to
   the vault*, so they survive restarts and travel with the stick (not tied to the
   browser or the random port).
@@ -73,10 +74,10 @@ Plug in the stick, run it, unlock with your master password, and you're home.
 | <img src="assets/01-lock.png" width="420"> | <img src="assets/02-app-dark.png" width="420"> |
 | **Command palette** — connect in two keystrokes | **Settings** — fonts, themes & colours (live, persisted) |
 | <img src="assets/03-palette.png" width="420"> | <img src="assets/04-settings.png" width="420"> |
-| **Shortcuts overlay** — platform-aware | **Light mode** — follows your system |
+| **Shortcuts overlay** — platform-aware | **Light schemes too** — e.g. GitHub Light |
 | <img src="assets/05-shortcuts.png" width="420"> | <img src="assets/06-app-light.png" width="420"> |
 
-**Whole-app theming** — the entire UI recolours to any scheme (here: Dracula):
+**Whole-app theming** — the entire UI recolours to any scheme (here: Nord):
 
 <div align="center"><img src="assets/07-app-theme.png" alt="PortaSSH in Dracula theme" width="850"></div>
 
@@ -162,7 +163,6 @@ PortaSSH never steals keys your terminal needs.
 | Jump to tab 1–9 | `⌘1`…`⌘9` | `Alt+1`…`Alt+9` |
 | Close current tab | `⌘⌫` | `Ctrl+Shift+⌫` |
 | Lock vault | `⌘L` | `Ctrl+Shift+L` |
-| Toggle theme | `⌘\` | `Ctrl+Shift+\` |
 | Settings | `⌘,` | `Ctrl+Shift+,` |
 | Shortcuts help | `⌘/` | `F1` |
 

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 // launchIsolatedApp opens the PortaSSH UI in a Chromium-family browser running
@@ -43,13 +44,37 @@ func launchIsolatedApp(url, profileDir string) bool {
 		"--window-size=1200,820",
 	}
 
-	cmd := exec.Command(bin, args...)
+	var cmd *exec.Cmd
+	if runtime.GOOS == "darwin" {
+		// On macOS, exec'ing the Chrome binary directly while Chrome is already
+		// running makes LaunchServices reuse the *existing* instance — it opens a
+		// window in the user's default profile (breaking isolation) and later
+		// dock clicks spawn blank windows instead of returning to PortaSSH.
+		// `open -n` forces a brand-new, separate instance bound to our profile.
+		if bundle := macAppBundle(bin); bundle != "" {
+			cmd = exec.Command("open", append([]string{"-n", "-a", bundle, "--args"}, args...)...)
+		} else {
+			cmd = exec.Command(bin, args...)
+		}
+	} else {
+		cmd = exec.Command(bin, args...)
+	}
+
 	if err := cmd.Start(); err != nil {
 		log.Printf("PortaSSH: failed to launch isolated browser %q: %v", bin, err)
 		return false
 	}
 	log.Printf("PortaSSH: opened isolated (extension-free) window via %s", filepath.Base(bin))
 	return true
+}
+
+// macAppBundle derives the .app bundle path from a Chrome binary path, e.g.
+// "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" -> the .app.
+func macAppBundle(bin string) string {
+	if i := strings.Index(bin, ".app/"); i >= 0 {
+		return bin[:i+len(".app")]
+	}
+	return ""
 }
 
 // findChromium returns the path to the first available Chromium-family browser,

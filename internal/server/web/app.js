@@ -499,7 +499,7 @@ window.addEventListener("resize", () => {
    it on the stick. This object is the single source of truth.
    ============================================================ */
 const PREF_DEFAULTS = {
-  theme: "system",        // app light/dark: "system" | "light" | "dark"
+  theme: "dracula",       // app theme: "system" (follow OS) or a scheme id
   font: "jetbrains",
   fontSize: 13.5,
   lineHeight: 1.15,
@@ -553,11 +553,9 @@ function relLum(hex) {
 }
 function rgba(hex, a) { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; }
 
-// App theme dropdown: built-ins first, then every terminal scheme reused.
+// App theme dropdown: "System (auto)" to follow the OS, then every scheme.
 const APP_THEME_LIST = [
   { id: "system", label: "System (auto)" },
-  { id: "light",  label: "Light" },
-  { id: "dark",   label: "Dark" },
 ].concat(TERM_THEME_LIST.filter((t) => t.id !== "auto"));
 
 // The UI variables an app scheme controls (so we can cleanly clear them).
@@ -626,13 +624,6 @@ function applyTheme() {
   }
 
   applyTerminal(); // "auto" terminal palette depends on the app theme
-}
-function cycleTheme() {
-  // Keyboard shortcut: cycle the built-ins; from a scheme, return to System.
-  const i = BUILTIN_THEMES.indexOf(themePref());
-  prefs.theme = BUILTIN_THEMES[(i + 1) % BUILTIN_THEMES.length];
-  savePrefs();
-  applyTheme();
 }
 function initTheme() {
   applyTheme();
@@ -810,7 +801,6 @@ const SHORTCUTS = [
   ["Jump to tab 1–9", kb(["⌘", "1…9"], ["Alt", "1…9"])],
   ["Close current tab", kb(["⌘", "⌫"], ["Ctrl", "⇧", "⌫"])],
   ["Lock vault", kb(["⌘", "L"], ["Ctrl", "⇧", "L"])],
-  ["Toggle theme", kb(["⌘", "\\"], ["Ctrl", "⇧", "\\"])],
   ["Settings", kb(["⌘", ","], ["Ctrl", "⇧", ","])],
   ["Show this help", kb(["⌘", "/"], ["F1"])],
 ];
@@ -845,7 +835,6 @@ function handleGlobalKey(e) {
   if (comboKey(e, "KeyK")) return fire(openPalette);
   if (comboKey(e, "KeyE")) return fire(() => openEditor(null));
   if (comboKey(e, "KeyL")) return fire(() => $("btn-lock").click());
-  if (comboKey(e, "Backslash")) return fire(cycleTheme);
   if (comboKey(e, "Comma")) return fire(openSettings);
   if (comboKey(e, "Slash") || e.code === "F1") return fire(openHelp);
   if (comboKey(e, "Backspace")) return fire(() => { if (state.activeTab) closeTab(state.activeTab); });
@@ -904,8 +893,7 @@ function buildPaletteItems(query) {
 
   const commands = [
     { kind: "command", icon: "＋", title: "New connection…", sub: "Add a saved host", run: () => { closePalette(); openEditor(null); } },
-    { kind: "command", icon: "🎨", title: "Toggle theme", sub: "System · Light · Dark", run: () => { cycleTheme(); } },
-    { kind: "command", icon: "⚙️", title: "Settings", sub: "Terminal font, size, spacing", run: () => { closePalette(); openSettings(); } },
+    { kind: "command", icon: "⚙️", title: "Settings", sub: "Theme, font, colours", run: () => { closePalette(); openSettings(); } },
     { kind: "command", icon: "🔒", title: "Lock vault", sub: "Wipe keys from memory", run: () => { closePalette(); $("btn-lock").click(); } },
     { kind: "command", icon: "⌨︎", title: "Keyboard shortcuts", sub: "", run: () => { closePalette(); openHelp(); } },
   ].filter((c) => match(c.title));
