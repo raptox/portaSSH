@@ -53,6 +53,9 @@ Plug in the stick, run it, unlock with your master password, and you're home.
 - 🌈 **Terminal colour schemes** — nine popular presets (Dracula, Nord, One Dark,
   Monokai, Gruvbox, Solarized Dark/Light, Tomorrow Night, GitHub Light) plus
   custom **background / foreground** colour pickers.
+- 🖌️ **Whole-app theming** — apply any of those schemes (or System / Light / Dark)
+  to the *entire* interface, not just the terminal. The UI palette is derived
+  live from the scheme, and the terminal follows along automatically.
 - 💾 **Settings that persist** — all preferences are saved in a JSON file *next to
   the vault*, so they survive restarts and travel with the stick (not tied to the
   browser or the random port).
@@ -72,6 +75,10 @@ Plug in the stick, run it, unlock with your master password, and you're home.
 | <img src="assets/03-palette.png" width="420"> | <img src="assets/04-settings.png" width="420"> |
 | **Shortcuts overlay** — platform-aware | **Light mode** — follows your system |
 | <img src="assets/05-shortcuts.png" width="420"> | <img src="assets/06-app-light.png" width="420"> |
+
+**Whole-app theming** — the entire UI recolours to any scheme (here: Dracula):
+
+<div align="center"><img src="assets/07-app-theme.png" alt="PortaSSH in Dracula theme" width="850"></div>
 
 ## 📦 Getting started
 

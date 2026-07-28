@@ -329,9 +329,14 @@ const TERM_THEME_LIST = [
 ];
 
 // termBaseTheme returns the palette for the current selection (before overrides).
+// "auto" follows the app theme — including a full scheme when one is active —
+// so picking e.g. Dracula for the whole app themes the terminal to match too.
 function termBaseTheme() {
   const id = prefs.termTheme || "auto";
-  if (id === "auto") return XTERM_THEMES[effectiveTheme()] || XTERM_THEMES.dark;
+  if (id === "auto") {
+    if (isSchemeTheme(prefs.theme)) return TERM_PRESETS[prefs.theme];
+    return XTERM_THEMES[effectiveTheme()] || XTERM_THEMES.dark;
+  }
   return TERM_PRESETS[id] || XTERM_THEMES.dark;
 }
 
@@ -521,33 +526,121 @@ function savePrefs() {
 }
 
 /* ============================================================
-   THEME  (system-aware app light/dark, with manual override)
+   THEME  (whole-app theming)
+   prefs.theme ∈ {"system","light","dark"} (built-ins) OR a scheme id
+   (dracula, nord, …). For a scheme we derive a full set of UI tokens
+   from its palette and apply them as inline CSS variables on :root.
    ============================================================ */
 const systemLight = window.matchMedia("(prefers-color-scheme: light)");
+
+// --- small colour helpers ---
+function hexToRgb(h) {
+  h = String(h).replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const n = parseInt(h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function rgbToHex(r) {
+  return "#" + r.map((x) => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, "0")).join("");
+}
+function mixHex(a, b, t) {
+  const x = hexToRgb(a), y = hexToRgb(b);
+  return rgbToHex(x.map((v, i) => v + (y[i] - v) * t));
+}
+function relLum(hex) {
+  const [r, g, b] = hexToRgb(hex).map((v) => v / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function rgba(hex, a) { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; }
+
+// App theme dropdown: built-ins first, then every terminal scheme reused.
+const APP_THEME_LIST = [
+  { id: "system", label: "System (auto)" },
+  { id: "light",  label: "Light" },
+  { id: "dark",   label: "Dark" },
+].concat(TERM_THEME_LIST.filter((t) => t.id !== "auto"));
+
+// The UI variables an app scheme controls (so we can cleanly clear them).
+const APP_VAR_KEYS = [
+  "--bg", "--bg-2", "--panel", "--panel-2", "--border", "--border-2",
+  "--text", "--muted", "--faint", "--accent", "--accent-2", "--good", "--danger",
+  "--glow", "--shadow-lg",
+];
+
+// deriveAppTheme turns a terminal palette into a full set of UI tokens.
+function deriveAppTheme(s) {
+  const bg = s.background, fg = s.foreground;
+  const dark = relLum(bg) < 0.4;
+  const accent = s.blue || s.brightBlue;
+  const accent2 = s.magenta || s.brightMagenta || accent;
+  const t = { "--text": fg, "--accent": accent, "--accent-2": accent2, "--good": s.green, "--danger": s.red };
+  t["--muted"] = mixHex(bg, fg, 0.58);
+  t["--faint"] = mixHex(bg, fg, 0.40);
+  if (dark) {
+    t["--bg"] = bg;
+    t["--bg-2"] = mixHex(bg, "#ffffff", 0.04);
+    t["--panel"] = mixHex(bg, "#ffffff", 0.06);
+    t["--panel-2"] = mixHex(bg, "#ffffff", 0.10);
+    t["--border"] = mixHex(bg, "#ffffff", 0.15);
+    t["--border-2"] = mixHex(bg, "#ffffff", 0.25);
+    t["--shadow-lg"] = "0 30px 80px -30px rgba(0,0,0,.8)";
+  } else {
+    t["--bg"] = mixHex(bg, "#000000", 0.05);
+    t["--bg-2"] = "#ffffff";
+    t["--panel"] = mixHex(bg, "#ffffff", 0.55);
+    t["--panel-2"] = mixHex(bg, "#000000", 0.04);
+    t["--border"] = mixHex(bg, "#000000", 0.11);
+    t["--border-2"] = mixHex(bg, "#000000", 0.20);
+    t["--shadow-lg"] = "0 30px 70px -30px rgba(30,41,80,.35)";
+  }
+  t["--glow"] = `0 0 0 1px ${rgba(accent, 0.35)}, 0 8px 30px -8px ${rgba(accent, 0.5)}`;
+  return t;
+}
+
+const BUILTIN_THEMES = ["system", "light", "dark"];
+function isSchemeTheme(p) { return !BUILTIN_THEMES.includes(p) && !!TERM_PRESETS[p]; }
 
 function themePref() { return prefs.theme || "system"; }
 function effectiveTheme() {
   const p = themePref();
   if (p === "light" || p === "dark") return p;
+  if (isSchemeTheme(p)) return relLum(TERM_PRESETS[p].background) < 0.4 ? "dark" : "light";
   return systemLight.matches ? "light" : "dark";
 }
 function applyTheme() {
   const p = themePref();
   const root = document.documentElement;
-  if (p === "system") root.removeAttribute("data-theme");
-  else root.setAttribute("data-theme", p);
 
-  const icon = p === "light" ? "☀️" : p === "dark" ? "🌙" : "🖥️";
-  const title = "Theme: " + (p === "system" ? "follow system" : p) + " (click to change)";
+  // Clear any previously-applied scheme variables first.
+  for (const k of APP_VAR_KEYS) root.style.removeProperty(k);
+
+  if (isSchemeTheme(p)) {
+    const dark = relLum(TERM_PRESETS[p].background) < 0.4;
+    root.setAttribute("data-theme", dark ? "dark" : "light");
+    const vars = deriveAppTheme(TERM_PRESETS[p]);
+    for (const k in vars) root.style.setProperty(k, vars[k]);
+  } else if (p === "system") {
+    root.removeAttribute("data-theme");
+  } else {
+    root.setAttribute("data-theme", p);
+  }
+
+  updateThemeButton(p);
+  applyTerminal(); // "auto" terminal palette depends on the app theme
+}
+function updateThemeButton(p) {
+  const label = APP_THEME_LIST.find((t) => t.id === p);
+  const icon = p === "light" ? "☀️" : p === "dark" ? "🌙" : p === "system" ? "🖥️" : "🎨";
+  const title = "Theme: " + (label ? label.label : p) + " (click to cycle built-ins)";
   for (const id of ["btn-theme", "btn-theme-lock"]) {
     const el = $(id);
     if (el) { el.textContent = icon; el.title = title; }
   }
-  applyTerminal(); // "auto" terminal palette depends on the app theme
 }
 function cycleTheme() {
-  const order = ["system", "light", "dark"];
-  prefs.theme = order[(order.indexOf(themePref()) + 1) % order.length];
+  // The quick button cycles the built-ins; from a scheme it returns to System.
+  const i = BUILTIN_THEMES.indexOf(themePref());
+  prefs.theme = BUILTIN_THEMES[(i + 1) % BUILTIN_THEMES.length];
   savePrefs();
   applyTheme();
 }
@@ -590,6 +683,15 @@ function applyFont() {
 }
 
 function openSettings() {
+  // App theme dropdown
+  const asel = $("set-apptheme");
+  asel.innerHTML = "";
+  for (const t of APP_THEME_LIST) {
+    const o = document.createElement("option");
+    o.value = t.id; o.textContent = t.label;
+    if (t.id === prefs.theme) o.selected = true;
+    asel.appendChild(o);
+  }
   // Font dropdown
   const fsel = $("set-font");
   fsel.innerHTML = "";
@@ -638,6 +740,10 @@ function initSettings() {
   $("btn-settings").addEventListener("click", openSettings);
   $("set-close").addEventListener("click", () => $("settings").classList.add("hidden"));
 
+  $("set-apptheme").addEventListener("input", () => {
+    prefs.theme = $("set-apptheme").value;
+    savePrefs(); applyTheme(); syncColorPickers(); refreshSettingsPreview();
+  });
   $("set-font").addEventListener("input", () => { prefs.font = $("set-font").value; savePrefs(); refreshSettingsPreview(); applyFont(); });
   $("set-size").addEventListener("input", () => { prefs.fontSize = parseFloat($("set-size").value); savePrefs(); refreshSettingsPreview(); applyFont(); });
   $("set-lh").addEventListener("input", () => { prefs.lineHeight = parseFloat($("set-lh").value); savePrefs(); refreshSettingsPreview(); applyFont(); });
