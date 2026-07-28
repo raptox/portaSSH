@@ -625,20 +625,10 @@ function applyTheme() {
     root.setAttribute("data-theme", p);
   }
 
-  updateThemeButton(p);
   applyTerminal(); // "auto" terminal palette depends on the app theme
 }
-function updateThemeButton(p) {
-  const label = APP_THEME_LIST.find((t) => t.id === p);
-  const icon = p === "light" ? "☀️" : p === "dark" ? "🌙" : p === "system" ? "🖥️" : "🎨";
-  const title = "Theme: " + (label ? label.label : p) + " (click to cycle built-ins)";
-  for (const id of ["btn-theme", "btn-theme-lock"]) {
-    const el = $(id);
-    if (el) { el.textContent = icon; el.title = title; }
-  }
-}
 function cycleTheme() {
-  // The quick button cycles the built-ins; from a scheme it returns to System.
+  // Keyboard shortcut: cycle the built-ins; from a scheme, return to System.
   const i = BUILTIN_THEMES.indexOf(themePref());
   prefs.theme = BUILTIN_THEMES[(i + 1) % BUILTIN_THEMES.length];
   savePrefs();
@@ -647,8 +637,6 @@ function cycleTheme() {
 function initTheme() {
   applyTheme();
   systemLight.addEventListener("change", () => { if (themePref() === "system") applyTheme(); });
-  $("btn-theme").addEventListener("click", cycleTheme);
-  $("btn-theme-lock").addEventListener("click", cycleTheme);
 }
 
 /* ============================================================
