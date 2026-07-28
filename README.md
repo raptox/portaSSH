@@ -1,6 +1,8 @@
 <div align="center">
 
-# ⌘ PortaSSH
+<img src="assets/icon/icon-256.png" alt="PortaSSH icon" width="128">
+
+# PortaSSH
 
 ### Your keys. Your terminal. In your pocket.
 

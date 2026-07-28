@@ -165,6 +165,9 @@ label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px
   box-shadow: var(--glow);
 }
 .brand-mark.small { width: 30px; height: 30px; font-size: 15px; border-radius: 9px; }
+/* When the brand mark is the actual app icon (an <img>), it already carries its
+   own squircle + gradient, so drop the CSS gradient and just size it. */
+img.brand-mark { background: none; padding: 0; object-fit: contain; box-shadow: 0 8px 22px -8px rgba(110,168,254,.55); }
 .brand h1 { margin: 0; font-size: 22px; letter-spacing: -.02em; }
 .tagline { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
 .pw-row { display: flex; gap: 8px; }
