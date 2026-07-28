@@ -1,0 +1,57 @@
+name: release
+
+# Build and publish binaries whenever a version tag (e.g. v0.1.0) is pushed.
+#   git tag v0.1.0 && git push origin v0.1.0
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # required to create the GitHub Release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod # build with exactly the version in go.mod
+          check-latest: true
+
+      # PortaSSH is pure Go (no cgo), so one Linux runner cross-compiles every
+      # target. CGO_ENABLED=0 keeps the binaries fully static and portable.
+      - name: Build all platforms
+        env:
+          CGO_ENABLED: "0"
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          targets="darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64"
+          for t in $targets; do
+            os="${t%/*}"; arch="${t#*/}"
+            out="portassh-${VERSION}-${os}-${arch}"
+            [ "$os" = "windows" ] && out="${out}.exe"
+            echo "→ building $out"
+            GOOS="$os" GOARCH="$arch" go build \
+              -trimpath \
+              -ldflags "-s -w -X main.version=${VERSION}" \
+              -o "dist/${out}" .
+          done
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS
+          echo "----- SHA256SUMS -----"
+          cat SHA256SUMS
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

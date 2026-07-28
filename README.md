@@ -81,7 +81,27 @@ Plug in the stick, run it, unlock with your master password, and you're home.
   isolated, extension-free window; otherwise it falls back to your default browser.)
 - To **build**: [Go 1.26+](https://go.dev/dl/).
 
-### Build
+### Download a release
+
+Grab a prebuilt binary for your platform from the
+[**Releases**](../../releases) page — one file, no installer. Builds are
+produced by CI for macOS (Intel + Apple Silicon), Linux (amd64 + arm64), and
+Windows, with a `SHA256SUMS` file to verify integrity:
+
+```bash
+# verify the download (example)
+sha256sum -c SHA256SUMS --ignore-missing
+chmod +x portassh-*        # macOS / Linux
+./portassh-*
+```
+
+> **Note on unsigned binaries:** the releases aren't code-signed, so **macOS
+> Gatekeeper** ("developer cannot be verified" → right-click ▸ Open, or
+> `xattr -d com.apple.quarantine ./portassh-*`) and **Windows SmartScreen**
+> ("More info" ▸ "Run anyway") will warn on first launch. Prefer building from
+> source if you'd rather not.
+
+### Build from source
 
 ```bash
 git clone <your-repo-url> PortaSSH

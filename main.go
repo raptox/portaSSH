@@ -25,6 +25,10 @@ import (
 	"portassh/internal/vault"
 )
 
+// version is stamped at build time via -ldflags "-X main.version=...".
+// It defaults to "dev" for local builds.
+var version = "dev"
+
 func main() {
 	var (
 		addr     = flag.String("addr", "127.0.0.1:0", "loopback address to bind (host:port; 0 = random port)")
@@ -126,7 +130,7 @@ func resolveDataDir(override string) (string, error) {
 func banner(vaultPath, addr, url string) {
 	line := "────────────────────────────────────────────────────────"
 	fmt.Println()
-	fmt.Println("  ⌘  PortaSSH")
+	fmt.Printf("  ⌘  PortaSSH %s\n", version)
 	fmt.Println(line)
 	fmt.Printf("  Vault : %s\n", vaultPath)
 	fmt.Printf("  Serve : http://%s  (loopback only)\n", addr)
