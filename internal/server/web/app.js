@@ -132,6 +132,9 @@ function renderCreds() {
     return;
   }
 
+  // Reordering only makes sense over the full, unfiltered list.
+  const canReorder = !q;
+
   for (const c of filtered) {
     const el = document.createElement("div");
     el.className = "cred";
@@ -140,15 +143,46 @@ function renderCreds() {
     el.innerHTML = `
       <div class="cred-name">${esc(c.name)}</div>
       <div class="cred-sub">${esc(c.user)}@${esc(c.host)}:${c.port} · ${c.auth === "key" ? "🔑 key" : "🔒 password"}</div>
-      <button class="cred-edit">edit</button>`;
+      <div class="cred-actions">
+        ${canReorder ? `<div class="cred-move">
+          <button class="cred-arrow" data-dir="up" title="Move up">▲</button>
+          <button class="cred-arrow" data-dir="down" title="Move down">▼</button>
+        </div>` : ""}
+        <button class="cred-edit">edit</button>
+      </div>`;
     el.querySelector(".cred-edit").addEventListener("click", (ev) => {
       ev.stopPropagation();
       openEditor(c);
     });
+    if (canReorder) {
+      el.querySelectorAll(".cred-arrow").forEach((btn) => {
+        btn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          moveCred(c.id, btn.dataset.dir);
+        });
+      });
+    }
     el.addEventListener("click", () => openSession(c));
-    // paint the left bar via the ::before which reads --accent
-    el.style.setProperty("--accent", accent);
     list.appendChild(el);
+  }
+}
+
+// moveCred swaps a host with its neighbour and persists the new order.
+async function moveCred(id, dir) {
+  const arr = state.creds;
+  const i = arr.findIndex((c) => c.id === id);
+  const j = dir === "up" ? i - 1 : i + 1;
+  if (i < 0 || j < 0 || j >= arr.length) return;
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  renderCreds(); // optimistic
+  try {
+    const updated = await api("/api/creds/reorder", {
+      method: "POST",
+      body: JSON.stringify({ order: arr.map((c) => c.id) }),
+    });
+    if (Array.isArray(updated)) { state.creds = updated; renderCreds(); }
+  } catch {
+    await loadCreds(); // revert to server truth on failure
   }
 }
 

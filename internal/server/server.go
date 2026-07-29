@@ -86,6 +86,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/vault/password", s.auth(s.handleChangePassword))
 	s.mux.HandleFunc("/api/prefs", s.auth(s.handlePrefs))
 	s.mux.HandleFunc("/api/creds", s.auth(s.handleCreds))
+	s.mux.HandleFunc("/api/creds/reorder", s.auth(s.handleReorder))
 	s.mux.HandleFunc("/api/creds/", s.auth(s.handleCredByID))
 	s.mux.HandleFunc("/api/ws", s.auth(s.handleWS))
 }
@@ -236,6 +237,29 @@ func (s *Server) handleCreds(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func (s *Server) handleReorder(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var body struct {
+		Order []string `json:"order"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	if err := s.vault.Reorder(body.Order); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	list, err := s.vault.List()
+	if err != nil {
+		writeErr(w, http.StatusForbidden, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
 }
 
 func (s *Server) handleCredByID(w http.ResponseWriter, r *http.Request) {

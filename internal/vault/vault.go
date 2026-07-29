@@ -19,6 +19,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -302,6 +303,30 @@ func (v *Vault) Delete(id string) error {
 		}
 	}
 	return errors.New("credential not found")
+}
+
+// Reorder rearranges the stored credentials to match the given ID order and
+// persists the vault. IDs not present are ignored; any existing credentials
+// missing from the list keep their relative order and are placed at the end.
+func (v *Vault) Reorder(ids []string) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.key == nil {
+		return ErrLocked
+	}
+	pos := make(map[string]int, len(ids))
+	for i, id := range ids {
+		pos[id] = i
+	}
+	sort.SliceStable(v.data.Credentials, func(a, b int) bool {
+		pa, oka := pos[v.data.Credentials[a].ID]
+		pb, okb := pos[v.data.Credentials[b].ID]
+		if oka && okb {
+			return pa < pb
+		}
+		return oka && !okb // known ids sort before unknown ones
+	})
+	return v.persistLocked()
 }
 
 // --- internal helpers ---

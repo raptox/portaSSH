@@ -207,12 +207,24 @@ img.brand-mark { background: none; padding: 0; object-fit: contain; box-shadow: 
 .cred:hover { border-color: var(--border-2); background: var(--panel-2); transform: translateX(2px); }
 .cred-name { font-weight: 700; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
 .cred-sub { color: var(--muted); font-size: 11.5px; margin-top: 3px; }
-.cred-edit {
+.cred-actions {
   position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-  opacity: 0; background: var(--bg-2); border: 1px solid var(--border);
-  color: var(--muted); border-radius: 7px; padding: 4px 7px; font-size: 11px; transition: opacity .12s;
+  display: flex; align-items: center; gap: 5px;
+  opacity: 0; transition: opacity .12s;
 }
-.cred:hover .cred-edit { opacity: 1; }
+.cred:hover .cred-actions { opacity: 1; }
+.cred-edit {
+  background: var(--bg-2); border: 1px solid var(--border);
+  color: var(--muted); border-radius: 7px; padding: 4px 7px; font-size: 11px;
+}
+.cred-edit:hover { color: var(--text); border-color: var(--border-2); }
+.cred-move { display: flex; flex-direction: column; gap: 2px; }
+.cred-arrow {
+  background: var(--bg-2); border: 1px solid var(--border); color: var(--muted);
+  border-radius: 5px; width: 20px; height: 15px; line-height: 1; font-size: 8px;
+  display: grid; place-items: center; padding: 0;
+}
+.cred-arrow:hover { color: var(--text); border-color: var(--accent); }
 .cred-empty { color: var(--faint); font-size: 12.5px; text-align: center; padding: 30px 10px; }
 
 /* ============ Main / terminals ============ */
