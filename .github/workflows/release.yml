@@ -49,6 +49,14 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+          # webview_go's cgo pins pkg-config to webkit2gtk-4.0, but Ubuntu 24.04
+          # only ships 4.1 (API-compatible for webview's use). Alias the .pc
+          # names so pkg-config resolves 4.0 → 4.1.
+          PC="$(pkg-config --variable pcfiledir webkit2gtk-4.1)"
+          for m in webkit2gtk javascriptcoregtk webkit2gtk-web-extension; do
+            [ -f "$PC/$m-4.1.pc" ] && sudo ln -sf "$PC/$m-4.1.pc" "$PC/$m-4.0.pc" || true
+          done
+          pkg-config --exists webkit2gtk-4.0 && echo "pkg-config: webkit2gtk-4.0 resolves"
           mkdir -p dist
           CGO_ENABLED=1 go build -trimpath -ldflags "-s -w -X main.version=$VERSION" \
             -o "portassh-$VERSION-linux-amd64" .
