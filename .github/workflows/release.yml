@@ -49,6 +49,40 @@ jobs:
           echo "----- SHA256SUMS -----"
           cat SHA256SUMS
 
+      # Signing is optional: if the GPG_PRIVATE_KEY secret isn't set, the
+      # release is still published (unsigned), just without .asc files.
+      - name: Detect signing key
+        id: signing
+        env:
+          HAS_KEY: ${{ secrets.GPG_PRIVATE_KEY != '' }}
+        run: echo "enabled=$HAS_KEY" >> "$GITHUB_OUTPUT"
+
+      - name: Import GPG signing key
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          gpg --list-secret-keys --keyid-format=long
+
+      - name: GPG-sign artifacts
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          cd dist
+          # Detached, ASCII-armored signature for every binary and the checksum
+          # file. The passphrase is fed via stdin (safe for any characters); a
+          # key with no passphrase simply ignores it.
+          # Users verify with:  gpg --verify SHA256SUMS.asc SHA256SUMS
+          for f in $(ls | grep -v '\.asc$'); do
+            printf '%s' "${GPG_PASSPHRASE:-}" | gpg --batch --yes \
+              --pinentry-mode loopback --passphrase-fd 0 \
+              --armor --detach-sign --output "$f.asc" "$f"
+            echo "signed $f"
+          done
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:

@@ -97,20 +97,30 @@ Plug in the stick, run it, unlock with your master password, and you're home.
 Grab a prebuilt binary for your platform from the
 [**Releases**](../../releases) page — one file, no installer. Builds are
 produced by CI for macOS (Intel + Apple Silicon), Linux (amd64 + arm64), and
-Windows, with a `SHA256SUMS` file to verify integrity:
+Windows. Each release ships a `SHA256SUMS` file and detached **GPG signatures**
+(`.asc`) so you can confirm a download is genuine and untampered:
 
 ```bash
-# verify the download (example)
-sha256sum -c SHA256SUMS --ignore-missing
+# 1) once: import the PortaSSH signing key (committed as SIGNING-KEY.asc)
+gpg --import SIGNING-KEY.asc
+
+# 2) verify the checksum list really came from the maintainer
+gpg --verify SHA256SUMS.asc SHA256SUMS        # look for "Good signature"
+
+# 3) verify your binary matches the now-trusted checksums
+sha256sum -c SHA256SUMS --ignore-missing      # (shasum -a 256 -c on macOS)
+
 chmod +x portassh-*        # macOS / Linux
 ./portassh-*
 ```
 
-> **Note on unsigned binaries:** the releases aren't code-signed, so **macOS
-> Gatekeeper** ("developer cannot be verified" → right-click ▸ Open, or
-> `xattr -d com.apple.quarantine ./portassh-*`) and **Windows SmartScreen**
-> ("More info" ▸ "Run anyway") will warn on first launch. Prefer building from
-> source if you'd rather not.
+> **Note on OS warnings:** a GPG signature proves *authorship and integrity*,
+> but it doesn't register with **macOS Gatekeeper** or **Windows SmartScreen** —
+> those require an Apple Developer ID (notarized) and a CA-issued code-signing
+> certificate, respectively. So on first launch you may still see Gatekeeper
+> ("developer cannot be verified" → right-click ▸ Open, or
+> `xattr -d com.apple.quarantine ./portassh-*`) or SmartScreen ("More info" ▸
+> "Run anyway"). Building from source avoids both.
 
 ### Build from source
 
@@ -214,6 +224,27 @@ PortaSSH is built to be **honest about what it does and doesn't protect**.
 The entire frontend (HTML/CSS/JS, xterm.js, and all fonts) is embedded into the
 binary with Go's `embed`, so there are **no external assets** and nothing to
 install.
+
+## 🔏 Release signing (maintainer)
+
+The release workflow GPG-signs every artifact automatically **when two repo
+secrets are present** (otherwise releases are still published, just unsigned).
+One-time setup:
+
+```bash
+# 1) generate a signing key
+gpg --quick-generate-key "Your Name <you@example.com>" ed25519 sign 2y
+
+# 2) add these as GitHub repo secrets (Settings ▸ Secrets ▸ Actions):
+#      GPG_PRIVATE_KEY = full output of:
+gpg --armor --export-secret-keys you@example.com
+#      GPG_PASSPHRASE  = the key's passphrase (omit the secret if none)
+
+# 3) commit the PUBLIC key so users can verify downloads:
+gpg --armor --export you@example.com > SIGNING-KEY.asc
+```
+
+Then every `git push` of a `v*` tag builds, checksums, **and signs** the release.
 
 ## 📄 License
 
