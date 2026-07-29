@@ -16,6 +16,7 @@ installation. No background services. Nothing written outside its own folder.
 [![License: MIT](https://img.shields.io/badge/License-MIT-6ea8fe.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platform-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-8b7cf6)
 ![Single binary](https://img.shields.io/badge/deploy-single%20binary-4ade80)
+![Vibe coded with love](https://img.shields.io/badge/vibe%20coded-with%20love-f472b6)
 
 <img src="assets/03-palette.png" alt="PortaSSH command palette" width="850">
 
