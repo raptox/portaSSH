@@ -540,6 +540,8 @@ const PREF_DEFAULTS = {
   termTheme: "auto",      // terminal palette: "auto" | preset id
   termBg: "",             // optional custom background override (hex)
   termFg: "",             // optional custom foreground override (hex)
+  sidebarWidth: 290,      // sidebar width in px
+  sidebarCollapsed: false,
 };
 let prefs = Object.assign({}, PREF_DEFAULTS);
 
@@ -796,6 +798,61 @@ function toHex6(c) {
 }
 
 /* ============================================================
+   SIDEBAR  (collapsible + resizable, persisted in prefs)
+   ============================================================ */
+const SIDEBAR_MIN = 210, SIDEBAR_MAX = 480, SIDEBAR_DEFAULT = 290;
+function clampSidebar(w) {
+  w = parseInt(w, 10) || SIDEBAR_DEFAULT;
+  return Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, w));
+}
+function refitActive() {
+  const s = state.sessions.get(state.activeTab);
+  if (s) requestAnimationFrame(() => { try { s.fit.fit(); } catch {} });
+}
+function applySidebar() {
+  document.documentElement.style.setProperty("--sidebar-w", clampSidebar(prefs.sidebarWidth) + "px");
+  const collapsed = !!prefs.sidebarCollapsed;
+  $("app").classList.toggle("collapsed", collapsed);
+  $("btn-expand").classList.toggle("hidden", !collapsed);
+  refitActive();
+}
+function initSidebar() {
+  applySidebar();
+  $("btn-collapse").addEventListener("click", () => { prefs.sidebarCollapsed = true; savePrefs(); applySidebar(); });
+  $("btn-expand").addEventListener("click", () => { prefs.sidebarCollapsed = false; savePrefs(); applySidebar(); });
+
+  const handle = $("resize-handle");
+  let dragging = false;
+  handle.addEventListener("mousedown", (e) => {
+    dragging = true;
+    handle.classList.add("dragging");
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    const w = clampSidebar(e.clientX); // sidebar starts at viewport x=0
+    prefs.sidebarWidth = w;
+    document.documentElement.style.setProperty("--sidebar-w", w + "px");
+    refitActive();
+  });
+  window.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove("dragging");
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    savePrefs();
+  });
+  handle.addEventListener("dblclick", () => {
+    prefs.sidebarWidth = SIDEBAR_DEFAULT;
+    savePrefs();
+    applySidebar();
+  });
+}
+
+/* ============================================================
    KEYBOARD SHORTCUTS
    Platform-aware so we never clobber the terminal's own keys:
    on macOS the modifier is ⌘ (the shell uses Ctrl, ⌘ is free);
@@ -1012,6 +1069,7 @@ function esc(str) {
   await loadPrefs();     // fetch persisted settings before first paint of theme
   initTheme();           // applies theme + terminal colours from prefs
   initSettings();
+  initSidebar();
   initShortcuts();
   await initLock();
 })().catch((e) => {

@@ -42,12 +42,15 @@
 
   <!-- ============ MAIN APP ============ -->
   <div id="app" class="app hidden">
+    <div id="resize-handle" class="resize-handle" title="Drag to resize · double-click to reset"></div>
+    <button id="btn-expand" class="ghost icon expand-btn hidden" title="Show sidebar">»</button>
     <aside class="sidebar">
       <div class="sidebar-head">
         <img class="brand-mark small" src="icon.svg" alt="PortaSSH" />
         <span class="sidebar-title">PortaSSH</span>
         <button id="btn-settings" class="ghost icon" title="Settings">⚙️</button>
         <button id="btn-lock" class="ghost icon" title="Lock vault">🔒</button>
+        <button id="btn-collapse" class="ghost icon" title="Collapse sidebar">«</button>
       </div>
 
       <div class="search-row">

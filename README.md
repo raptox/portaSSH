@@ -41,7 +41,8 @@ Plug in the stick, run it, unlock with your master password, and you're home.
   to a USB stick alongside its vault and go. Cross-compiles to macOS, Linux, and
   Windows.
 - 🗂️ **Organise your hosts** — colour-code, search, and reorder them (move up /
-  down) in the sidebar; the order is saved and travels with the vault.
+  down) in a **collapsible, resizable** sidebar. Order and layout are saved and
+  travel with the vault.
 - 🖥️ **Multiple concurrent sessions** — tabbed terminals, each a real interactive
   PTY over SSH, powered by [xterm.js](https://xtermjs.org/).
 - ⌨️ **Keyboard-first workflow** — a **command palette** (`⌘K` / `Ctrl+Shift+K`)
