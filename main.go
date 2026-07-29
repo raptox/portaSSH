@@ -1,9 +1,11 @@
-// PortaSSH — a portable, encrypted SSH client you can carry on a USB stick.
+// PortaSSH — a portable, encrypted SSH connection manager you can carry on a
+// USB stick.
 //
 // It stores your SSH credentials in a single AES-256-GCM encrypted vault file
-// that lives next to the binary, and serves a modern web-based terminal UI on
-// the loopback interface. No installation, no background services, nothing
-// written outside its own directory.
+// that lives next to the binary, serves a modern web UI on the loopback
+// interface, and by default opens it in a native application window (an
+// embedded WebView — no console, no browser). No installation, no background
+// services, nothing written outside its own directory.
 package main
 
 import (
@@ -18,6 +20,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -30,11 +33,16 @@ import (
 var version = "dev"
 
 func main() {
+	// GUI toolkits require the main OS thread; pin it before anything migrates.
+	runtime.LockOSThread()
+
 	var (
-		addr     = flag.String("addr", "127.0.0.1:0", "loopback address to bind (host:port; 0 = random port)")
-		dir      = flag.String("dir", "", "data directory for the vault (default: next to the binary)")
-		noBrowse     = flag.Bool("no-browser", false, "do not auto-open the browser")
-		plainBrowser = flag.Bool("plain-browser", false, "open your default browser instead of an isolated extension-free window")
+		addr         = flag.String("addr", "127.0.0.1:0", "loopback address to bind (host:port; 0 = random port)")
+		dir          = flag.String("dir", "", "data directory for the vault (default: next to the binary)")
+		browser      = flag.Bool("browser", false, "open the UI in a browser window instead of a native app window")
+		plainBrowser = flag.Bool("plain-browser", false, "open your default browser (implies --browser)")
+		noWindow     = flag.Bool("no-window", false, "serve only; open no window (use the printed URL yourself)")
+		noBrowse     = flag.Bool("no-browser", false, "alias of --no-window")
 	)
 	flag.Parse()
 
@@ -74,32 +82,65 @@ func main() {
 		}
 	}()
 
-	if !*noBrowse {
-		profileDir := filepath.Join(dataDir, "browser-profile")
-		// Give the listener a beat, then open the tokenized URL — preferring an
-		// isolated, extension-free Chromium window; falling back to the default
-		// browser (where extensions may be active) only if none is found.
-		time.AfterFunc(300*time.Millisecond, func() {
-			if *plainBrowser || !launchIsolatedApp(url, profileDir) {
-				if !*plainBrowser {
-					log.Printf("PortaSSH: no Chromium-family browser found — opening your default browser. " +
-						"Note: browser extensions could observe this page. Consider installing Chrome/Edge/Chromium for an isolated window.")
-				}
-				openBrowser(url)
-			}
-		})
+	shutdown := func() {
+		v.Lock()
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_ = httpSrv.Shutdown(ctx)
 	}
 
-	// Graceful shutdown on Ctrl-C / SIGTERM; lock the vault on the way out.
+	// Ctrl-C / SIGTERM: lock the vault and exit from any mode.
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-	<-stop
+	go func() {
+		<-stop
+		fmt.Println("\nPortaSSH: locking vault and shutting down…")
+		shutdown()
+		os.Exit(0)
+	}()
 
-	fmt.Println("\nPortaSSH: locking vault and shutting down…")
-	v.Lock()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	_ = httpSrv.Shutdown(ctx)
+	useBrowser := *browser || *plainBrowser
+	headless := *noWindow || *noBrowse
+
+	switch {
+	case headless:
+		fmt.Println("  Serving only (--no-window). Press Ctrl-C to quit.")
+		select {} // wait for the signal handler
+
+	case useBrowser:
+		openInBrowser(url, dataDir, *plainBrowser)
+		select {}
+
+	case hasNativeWindow():
+		// Native app window on the main thread; returns when the user closes it.
+		if err := openWindow("PortaSSH", url); err != nil {
+			log.Printf("PortaSSH: %v — opening a browser instead.", err)
+			openInBrowser(url, dataDir, false)
+			select {}
+		}
+		shutdown()
+
+	default:
+		// Built with -tags nowindow: no native window available.
+		openInBrowser(url, dataDir, *plainBrowser)
+		select {}
+	}
+}
+
+// openInBrowser opens the UI in a browser: an isolated, extension-free Chromium
+// window by default, or the user's default browser when plain is set (or no
+// Chromium-family browser is found).
+func openInBrowser(url, dataDir string, plain bool) {
+	profileDir := filepath.Join(dataDir, "browser-profile")
+	time.AfterFunc(300*time.Millisecond, func() {
+		if plain || !launchIsolatedApp(url, profileDir) {
+			if !plain {
+				log.Printf("PortaSSH: no Chromium-family browser found — opening your default browser. " +
+					"Note: browser extensions could observe this page.")
+			}
+			openBrowser(url)
+		}
+	})
 }
 
 // resolveDataDir picks where the vault lives. Default is the directory holding
@@ -118,7 +159,15 @@ func resolveDataDir(override string) (string, error) {
 		if resolved, lerr := filepath.EvalSymlinks(exe); lerr == nil {
 			exe = resolved
 		}
-		return filepath.Dir(exe), nil
+		dir := filepath.Dir(exe)
+		// Inside a macOS .app bundle the binary lives at
+		// PortaSSH.app/Contents/MacOS/portassh — put the vault next to the .app
+		// (e.g. on the USB stick) rather than hidden inside the bundle.
+		if i := strings.Index(dir, ".app/Contents/MacOS"); i >= 0 {
+			appDir := dir[:i+len(".app")] // …/PortaSSH.app
+			return filepath.Dir(appDir), nil
+		}
+		return dir, nil
 	}
 	wd, err := os.Getwd()
 	if err != nil {

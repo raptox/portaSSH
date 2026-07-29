@@ -1,56 +1,98 @@
 name: release
 
-# Build and publish binaries whenever a version tag (e.g. v0.1.0) is pushed.
-#   git tag v0.1.0 && git push origin v0.1.0
+# Build and publish native app builds whenever a version tag (e.g. v0.2.0) is
+# pushed:  git tag v0.2.0 && git push origin v0.2.0
+#
+# The native window uses each OS's web engine, so builds are per-OS (cgo) rather
+# than cross-compiled from one runner. macOS is verified; Windows/Linux use the
+# standard cgo setup and are best validated on a real tag push.
 on:
   push:
     tags:
       - "v*"
 
 permissions:
-  contents: write # required to create the GitHub Release
+  contents: write
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest,   target: macos }
+          - { os: ubuntu-latest,  target: linux }
+          - { os: windows-latest, target: windows }
+    runs-on: ${{ matrix.os }}
+    env:
+      VERSION: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod # build with exactly the version in go.mod
+          go-version-file: go.mod
           check-latest: true
 
-      # PortaSSH is pure Go (no cgo), so one Linux runner cross-compiles every
-      # target. CGO_ENABLED=0 keeps the binaries fully static and portable.
-      - name: Build all platforms
-        env:
-          CGO_ENABLED: "0"
-          VERSION: ${{ github.ref_name }}
+      # macOS → a real PortaSSH.app bundle (no console), ad-hoc signed, zipped.
+      - name: Build macOS app
+        if: matrix.target == 'macos'
+        run: |
+          set -euo pipefail
+          scripts/build-macapp.sh "$VERSION" arm64
+          codesign --force --deep -s - dist/PortaSSH.app
+          ( cd dist && zip -qry "portassh-$VERSION-macos-arm64.app.zip" PortaSSH.app && rm -rf PortaSSH.app )
+
+      # Linux → native binary; needs GTK + WebKitGTK dev libs to build.
+      - name: Build Linux binary
+        if: matrix.target == 'linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+          mkdir -p dist
+          CGO_ENABLED=1 go build -trimpath -ldflags "-s -w -X main.version=$VERSION" \
+            -o "portassh-$VERSION-linux-amd64" .
+          tar -C . -czf "dist/portassh-$VERSION-linux-amd64.tar.gz" "portassh-$VERSION-linux-amd64"
+
+      # Windows → GUI subsystem exe (no console window), zipped.
+      - name: Build Windows exe
+        if: matrix.target == 'windows'
+        shell: bash
         run: |
           set -euo pipefail
           mkdir -p dist
-          targets="darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64"
-          for t in $targets; do
-            os="${t%/*}"; arch="${t#*/}"
-            out="portassh-${VERSION}-${os}-${arch}"
-            [ "$os" = "windows" ] && out="${out}.exe"
-            echo "→ building $out"
-            GOOS="$os" GOARCH="$arch" go build \
-              -trimpath \
-              -ldflags "-s -w -X main.version=${VERSION}" \
-              -o "dist/${out}" .
-          done
+          CGO_ENABLED=1 go build -trimpath \
+            -ldflags "-s -w -H windowsgui -X main.version=$VERSION" -o portassh.exe .
+          7z a "dist/portassh-$VERSION-windows-amd64.zip" portassh.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: staging
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist
+          find staging -type f -exec cp {} dist/ \;
+          echo "----- artifacts -----"; ls -la dist
 
       - name: Generate checksums
         run: |
           cd dist
           sha256sum * > SHA256SUMS
-          echo "----- SHA256SUMS -----"
-          cat SHA256SUMS
+          echo "----- SHA256SUMS -----"; cat SHA256SUMS
 
-      # Signing is optional: if the GPG_PRIVATE_KEY secret isn't set, the
-      # release is still published (unsigned), just without .asc files.
+      # Signing is optional: without the GPG_PRIVATE_KEY secret the release still
+      # publishes, just without .asc files.
       - name: Detect signing key
         id: signing
         env:
@@ -61,9 +103,7 @@ jobs:
         if: steps.signing.outputs.enabled == 'true'
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-        run: |
-          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
-          gpg --list-secret-keys --keyid-format=long
+        run: echo "$GPG_PRIVATE_KEY" | gpg --batch --import
 
       - name: GPG-sign artifacts
         if: steps.signing.outputs.enabled == 'true'
@@ -72,15 +112,10 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          # Detached, ASCII-armored signature for every binary and the checksum
-          # file. The passphrase is fed via stdin (safe for any characters); a
-          # key with no passphrase simply ignores it.
-          # Users verify with:  gpg --verify SHA256SUMS.asc SHA256SUMS
           for f in $(ls | grep -v '\.asc$'); do
             printf '%s' "${GPG_PASSPHRASE:-}" | gpg --batch --yes \
               --pinentry-mode loopback --passphrase-fd 0 \
               --armor --detach-sign --output "$f.asc" "$f"
-            echo "signed $f"
           done
 
       - name: Publish GitHub Release

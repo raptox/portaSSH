@@ -10,7 +10,8 @@
 on a USB stick. It keeps all your SSH credentials — hosts, users, passwords, and
 private keys — in one encrypted vault behind a master password, and lets you open
 and manage secure terminal sessions to any of them from a modern, keyboard-driven
-UI. No installation. No background services. Nothing written outside its own folder.
+UI that opens in a **native application window** — no console, no browser. No
+installation. No background services. Nothing written outside its own folder.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-6ea8fe.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platform-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-8b7cf6)
@@ -63,9 +64,10 @@ Plug in the stick, run it, unlock with your master password, and you're home.
 - 💾 **Settings that persist** — all preferences are saved in a JSON file *next to
   the vault*, so they survive restarts and travel with the stick (not tied to the
   browser or the random port).
-- 🛡️ **Isolated by default** — launches in an **extension-free browser window**
-  with a dedicated profile, so your everyday browser's extensions can't observe
-  the page. Loopback-only, gated behind a per-launch session token.
+- 🪟 **Native app window** — opens in its own OS window (embedded WebView) with
+  its own dock/taskbar icon — no console, no browser, no browser extensions that
+  could observe the page. Loopback-only, gated behind a per-launch session token.
+  (A `--browser` mode is still available if you prefer.)
 - 🔎 **TOFU host-key verification** — trust-on-first-use `known_hosts` that travels
   with the vault; a changed host key is treated as a hard error.
 
@@ -87,10 +89,14 @@ Plug in the stick, run it, unlock with your master password, and you're home.
 ## 📦 Getting started
 
 ### Requirements
-- To **run**: nothing — it's a single binary. (A Chromium-family browser —
-  Chrome / Edge / Chromium / Brave — is recommended so PortaSSH can open its
-  isolated, extension-free window; otherwise it falls back to your default browser.)
-- To **build**: [Go 1.26+](https://go.dev/dl/).
+- To **run**: the OS web engine for the native window —
+  **macOS** (WKWebView) and **Windows 10/11** (WebView2) have it built in;
+  **Linux** needs WebKitGTK (`libwebkit2gtk-4.1-0`). No browser required.
+  *(Or run with `--browser` to use a browser window instead, or
+  `-tags nowindow` builds which are pure-Go and always browser-based.)*
+- To **build**: [Go 1.26+](https://go.dev/dl/) with a C compiler (cgo) for the
+  native window; on Linux also the WebKitGTK dev headers
+  (`libgtk-3-dev libwebkit2gtk-4.1-dev`).
 
 ### Download a release
 
@@ -130,40 +136,34 @@ The signing key is **RaptoX &lt;raptox91@gmail.com&gt;**, fingerprint
 ```bash
 git clone <your-repo-url> PortaSSH
 cd PortaSSH
-go build -ldflags "-s -w" -o portassh .
+
+go build -o portassh .                 # native app window (needs cgo)
+./scripts/build-macapp.sh              # macOS: build PortaSSH.app (no console)
+go build -tags nowindow -o portassh .  # headless/browser build, pure Go, no cgo
 ```
 
 ### Run
 
 ```bash
+open dist/PortaSSH.app      # macOS app bundle — double-click also works
+# or, the raw binary on any OS:
 ./portassh
 ```
 
-That's it. PortaSSH prints a loopback URL with a one-time token, opens the UI in
-an isolated browser window, and waits. On first run it asks you to **create a
-master password**; after that it unlocks your vault.
-
-The vault (`portassh.vault`), `known_hosts`, and the isolated `browser-profile/`
-are all created **next to the binary** — so on a USB stick, everything travels
-together.
-
-### Cross-compile for the whole toolkit
-
-```bash
-GOOS=darwin  GOARCH=arm64 go build -ldflags "-s -w" -o dist/portassh-macos-arm64 .
-GOOS=darwin  GOARCH=amd64 go build -ldflags "-s -w" -o dist/portassh-macos-intel .
-GOOS=linux   GOARCH=amd64 go build -ldflags "-s -w" -o dist/portassh-linux-amd64  .
-GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o dist/portassh-windows.exe  .
-```
+PortaSSH opens in a **native window** and, on first run, asks you to **create a
+master password**; after that it unlocks your vault. The vault
+(`portassh.vault`) and `known_hosts` are created **next to the app** (beside the
+`.app` bundle on macOS) — so on a USB stick, everything travels together.
 
 ### Flags
 
 | Flag | Description |
 |---|---|
 | `--addr 127.0.0.1:0` | Loopback address to bind (`0` = random port). Non-loopback is refused. |
-| `--dir <path>` | Where the vault lives (default: next to the binary). |
-| `--plain-browser` | Open your default browser instead of the isolated window. |
-| `--no-browser` | Open nothing; use the printed URL yourself. |
+| `--dir <path>` | Where the vault lives (default: next to the app). |
+| `--browser` | Open in a browser window (isolated Chromium) instead of the native window. |
+| `--plain-browser` | Open your default browser (implies `--browser`). |
+| `--no-window` | Serve only; open nothing — use the printed URL yourself. |
 
 ## ⌨️ Keyboard shortcuts
 
@@ -191,35 +191,36 @@ PortaSSH is built to be **honest about what it does and doesn't protect**.
 - **Vault at rest** — AES‑256‑GCM with an Argon2id-derived key (64 MiB, 3
   iterations). A lost stick doesn't hand over your credentials without the
   master password.
-- **Secrets stay server-side** — the browser UI never receives stored passwords
-  or private keys; they're only used in-process to establish a connection.
+- **Secrets stay server-side** — the UI never receives stored passwords or
+  private keys; they're only used in-process to establish a connection.
 - **Local surface** — the server binds to **loopback only**, refuses non-loopback
   peers, and gates every request behind a **per-launch random session token**
   (passed via the URL fragment, kept out of server logs).
-- **Browser extensions** — by launching in a **dedicated, extension-free profile**,
-  the page is isolated from the extensions in your everyday browser, which could
-  otherwise read keystrokes (including your master password) and terminal output.
+- **No browser extensions** — the default **native window** has no extensions at
+  all, so nothing can read your keystrokes (including the master password) or
+  terminal output from the page.
 - **Host keys** — trust-on-first-use `known_hosts`; a key that changes later is a
   hard failure, not a silent accept.
 
 **Honest boundaries**
 
 - **Malware already running as your OS user** is out of scope — it could keylog
-  at the OS level or read the profile directory. This is true of *any* SSH client.
-- The isolated-window protection needs a Chromium-family browser; with
-  `--plain-browser` (or none installed) you fall back to your normal browser,
-  where extensions may be active.
+  at the OS level or read the data directory. This is true of *any* SSH client.
+- If you opt into `--browser` mode, the page runs in a browser again: PortaSSH
+  uses an isolated, extension-free Chromium profile when available, but with
+  `--plain-browser` (or no Chromium installed) your normal browser's extensions
+  may be active.
 
 ## 🧩 How it works
 
 ```
 ┌─────────────────────────────┐        ┌──────────────────────────────┐
-│  Isolated browser window     │  ws/   │  PortaSSH  (single Go binary) │
+│  Native app window (WebView) │  ws/   │  PortaSSH  (single binary)    │
 │  ├─ xterm.js terminals       │◄──────►│  ├─ HTTP+WS server (loopback) │
 │  ├─ command palette / UI     │  http  │  ├─ Argon2id + AES-GCM vault  │
 │  └─ embedded fonts + assets  │        │  └─ x/crypto/ssh  → PTY       │
 └─────────────────────────────┘        └───────────────┬──────────────┘
-                                                        │ SSH
+   one process · no browser                            │ SSH
                                                         ▼
                                                   your servers
 ```
