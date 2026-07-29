@@ -4,17 +4,17 @@
 
 # PortaSSH
 
-### Your keys. Your terminal. In your pocket.
+### A portable, encrypted SSH connection manager.
 
-A **portable, encrypted, single-binary SSH client** you can carry on a USB stick.
-No installation. No background services. Nothing written outside its own folder.
-Just a single executable, a modern web-based terminal, and an encrypted vault
-for all your SSH credentials.
+**PortaSSH** is a **connection manager for SSH** in a single binary you can carry
+on a USB stick. It keeps all your SSH credentials — hosts, users, passwords, and
+private keys — in one encrypted vault behind a master password, and lets you open
+and manage secure terminal sessions to any of them from a modern, keyboard-driven
+UI. No installation. No background services. Nothing written outside its own folder.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-6ea8fe.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platform-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-8b7cf6)
 ![Single binary](https://img.shields.io/badge/deploy-single%20binary-4ade80)
-![Vibe coded with love](https://img.shields.io/badge/vibe%20coded-with%20love-f472b6)
 
 <img src="assets/03-palette.png" alt="PortaSSH command palette" width="850">
 
@@ -40,6 +40,8 @@ Plug in the stick, run it, unlock with your master password, and you're home.
 - 💾 **Truly portable** — a single static binary with zero dependencies. Copy it
   to a USB stick alongside its vault and go. Cross-compiles to macOS, Linux, and
   Windows.
+- 🗂️ **Organise your hosts** — colour-code, search, and reorder them (move up /
+  down) in the sidebar; the order is saved and travels with the vault.
 - 🖥️ **Multiple concurrent sessions** — tabbed terminals, each a real interactive
   PTY over SSH, powered by [xterm.js](https://xtermjs.org/).
 - ⌨️ **Keyboard-first workflow** — a **command palette** (`⌘K` / `Ctrl+Shift+K`)
@@ -218,11 +220,3 @@ install.
 can use, modify, and ship PortaSSH, with attribution and no warranty. It's the
 right default for a tool meant to be shared and carried around. (If you ever want
 an explicit patent grant, Apache‑2.0 is the natural alternative.)
-
----
-
-<div align="center">
-
-**Vibe coded with love.** 💜
-
-</div>
