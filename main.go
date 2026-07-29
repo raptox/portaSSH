@@ -46,6 +46,11 @@ func main() {
 	)
 	flag.Parse()
 
+	// --install-desktop-entry / --remove-desktop-entry (Linux) do their work and exit.
+	if handleDesktopEntryFlags() {
+		return
+	}
+
 	dataDir, err := resolveDataDir(*dir)
 	if err != nil {
 		log.Fatalf("PortaSSH: %v", err)

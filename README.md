@@ -124,6 +124,20 @@ chmod +x portassh-*        # macOS / Linux
 The signing key is **RaptoX &lt;raptox91@gmail.com&gt;**, fingerprint
 `8ADC D305 ADF5 99BE 3D17  EBCA 99FC 7F55 F94C 6067`.
 
+> **Note for Linux/Wayland users:** the app icon is embedded in the binary and
+> set on the window directly, which X11 window managers pick up as-is. Wayland
+> has no such channel — the shell (GNOME, KDE, COSMIC …) looks the icon up from
+> an installed desktop entry. If you want the proper icon in the dock and
+> alt-tab there, run once:
+>
+> ```bash
+> ./portassh-* --install-desktop-entry   # ~/.local/share/{applications,icons}
+> ./portassh-* --remove-desktop-entry    # …and to take it back out
+> ```
+>
+> This is the only time PortaSSH writes anything outside its own directory, so
+> it never happens unless you ask. A USB-stick install can skip it entirely.
+
 > **Note on OS warnings:** a GPG signature proves *authorship and integrity*,
 > but it doesn't register with **macOS Gatekeeper** or **Windows SmartScreen** —
 > those require an Apple Developer ID (notarized) and a CA-issued code-signing

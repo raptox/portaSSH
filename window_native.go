@@ -22,6 +22,8 @@ func openWindow(title, url string) (err error) {
 			err = fmt.Errorf("native window failed: %v", r)
 		}
 	}()
+	// Must happen before the toolkit initialises — it reads the program name.
+	setAppIdentity()
 	w := webview.New(false) // debug=false
 	if w == nil {
 		return errors.New("could not create a native window (no web engine available)")
@@ -30,6 +32,7 @@ func openWindow(title, url string) (err error) {
 	w.SetTitle(title)
 	w.SetSize(1200, 820, webview.HintNone)
 	w.SetSize(720, 480, webview.HintMin)
+	applyWindowIcon(w.Window())
 	w.Navigate(url)
 	w.Run() // blocks until the window is closed
 	return nil
