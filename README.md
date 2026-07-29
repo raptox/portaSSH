@@ -114,6 +114,9 @@ chmod +x portassh-*        # macOS / Linux
 ./portassh-*
 ```
 
+The signing key is **RaptoX &lt;raptox91@gmail.com&gt;**, fingerprint
+`8ADC D305 ADF5 99BE 3D17  EBCA 99FC 7F55 F94C 6067`.
+
 > **Note on OS warnings:** a GPG signature proves *authorship and integrity*,
 > but it doesn't register with **macOS Gatekeeper** or **Windows SmartScreen** —
 > those require an Apple Developer ID (notarized) and a CA-issued code-signing
@@ -224,27 +227,6 @@ PortaSSH is built to be **honest about what it does and doesn't protect**.
 The entire frontend (HTML/CSS/JS, xterm.js, and all fonts) is embedded into the
 binary with Go's `embed`, so there are **no external assets** and nothing to
 install.
-
-## 🔏 Release signing (maintainer)
-
-The release workflow GPG-signs every artifact automatically **when two repo
-secrets are present** (otherwise releases are still published, just unsigned).
-One-time setup:
-
-```bash
-# 1) generate a signing key
-gpg --quick-generate-key "Your Name <you@example.com>" ed25519 sign 2y
-
-# 2) add these as GitHub repo secrets (Settings ▸ Secrets ▸ Actions):
-#      GPG_PRIVATE_KEY = full output of:
-gpg --armor --export-secret-keys you@example.com
-#      GPG_PASSPHRASE  = the key's passphrase (omit the secret if none)
-
-# 3) commit the PUBLIC key so users can verify downloads:
-gpg --armor --export you@example.com > SIGNING-KEY.asc
-```
-
-Then every `git push` of a `v*` tag builds, checksums, **and signs** the release.
 
 ## 📄 License
 
