@@ -10,6 +10,7 @@ import (
 	"net"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/ssh"
 
@@ -151,18 +152,106 @@ func NewSession(client *ssh.Client, ws Conn, cols, rows int) (*Session, error) {
 	return s, nil
 }
 
-// pumpOutput streams remote output to the browser as "data" frames.
+const (
+	// maxFrame caps how much output one "data" frame carries.
+	maxFrame = 32 * 1024
+
+	// coalesceWindow bounds how long output may wait for more to join it. A
+	// chatty shell hands us many small reads, and one websocket frame per read
+	// makes the browser pay JSON.parse + xterm write overhead per fragment —
+	// which is what the WebKitGTK build (Linux) is slowest at. Batching within
+	// a window well under a display frame (~16ms) is invisible either way.
+	coalesceWindow = 5 * time.Millisecond
+)
+
+// pumpOutput streams remote output to the browser as "data" frames, batching
+// reads that arrive close together. The read loop lives in its own goroutine so
+// that a blocking Read can never strand already-buffered bytes.
 func (s *Session) pumpOutput(r io.Reader) {
-	buf := make([]byte, 32*1024)
-	for {
-		n, err := r.Read(buf)
-		if n > 0 {
-			s.sendJSON(Message{Type: "data", Data: string(buf[:n])})
+	chunks := make(chan []byte, 64)
+	go func() {
+		defer close(chunks)
+		buf := make([]byte, maxFrame)
+		for {
+			n, err := r.Read(buf)
+			if n > 0 {
+				chunks <- append([]byte(nil), buf[:n]...)
+			}
+			if err != nil {
+				return
+			}
 		}
-		if err != nil {
-			return
+	}()
+
+	var (
+		pending   []byte
+		lastFlush time.Time
+		timer     *time.Timer
+		timerC    <-chan time.Time
+	)
+	stopTimer := func() {
+		if timer != nil {
+			timer.Stop()
+			timer, timerC = nil, nil
 		}
 	}
+	// flush sends what is buffered, holding back a trailing partial UTF-8
+	// sequence so a multi-byte rune split across two reads isn't mangled into
+	// U+FFFD by json.Marshal. all=true overrides that for the final flush.
+	flush := func(all bool) {
+		n := len(pending)
+		if !all {
+			n = completeLen(pending)
+		}
+		if n == 0 {
+			return
+		}
+		s.sendJSON(Message{Type: "data", Data: string(pending[:n])})
+		pending = append(pending[:0], pending[n:]...)
+		lastFlush = time.Now()
+	}
+
+	for {
+		select {
+		case c, ok := <-chunks:
+			if !ok {
+				stopTimer()
+				flush(true)
+				return
+			}
+			pending = append(pending, c...)
+			// Flush at once when the buffer is full, or when output has been
+			// idle long enough that nothing is waiting to join it — so an
+			// isolated keystroke echo never pays the batching delay.
+			switch wait := coalesceWindow - time.Since(lastFlush); {
+			case len(pending) >= maxFrame || wait <= 0:
+				stopTimer()
+				flush(false)
+			case timerC == nil:
+				timer = time.NewTimer(wait)
+				timerC = timer.C
+			}
+		case <-timerC:
+			timer, timerC = nil, nil
+			flush(false)
+		}
+	}
+}
+
+// completeLen is the length of b with any trailing incomplete UTF-8 sequence
+// trimmed off.
+func completeLen(b []byte) int {
+	for i := len(b) - 1; i >= 0 && i >= len(b)-utf8.UTFMax; i-- {
+		if !utf8.RuneStart(b[i]) {
+			continue
+		}
+		// b[i:] is the last rune in the buffer, whole or truncated.
+		if r, size := utf8.DecodeRune(b[i:]); r == utf8.RuneError && size <= 1 {
+			return i
+		}
+		return len(b)
+	}
+	return len(b)
 }
 
 // Run blocks reading websocket frames from the browser and applying them to the
