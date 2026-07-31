@@ -29,6 +29,9 @@ func openWindow(title, url string) (err error) {
 		return errors.New("could not create a native window (no web engine available)")
 	}
 	defer w.Destroy()
+	// The toolkit creates the NSApplication but no menu bar; macOS needs one to
+	// dispatch ⌘-key equivalents at all. No-op off macOS.
+	installAppMenu(title)
 	w.SetTitle(title)
 	w.SetSize(1200, 820, webview.HintNone)
 	w.SetSize(720, 480, webview.HintMin)
