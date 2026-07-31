@@ -912,9 +912,58 @@ function gotoTabIndex(idx) {
 
 function appVisible() { return !$("app").classList.contains("hidden"); }
 
+function activeTerm() {
+  const s = state.sessions.get(state.activeTab);
+  return s ? s.term : null;
+}
+
+/* macOS clipboard bridge — for the terminal only.
+   Text fields need nothing from us: the app's Edit menu drives the WebView's
+   native cut:/copy:/paste:/selectAll:, which get undo and every input type
+   right. A terminal selection, though, is *drawn* by xterm rather than being a
+   DOM selection, so the native copy: has nothing to act on and ⌘C would come up
+   empty. We handle that case here.
+   The page is offered ⌘-keys before the menu is, and calling preventDefault
+   suppresses the menu action — so whatever we claim below, the Edit menu will
+   not also fire; whatever we decline falls through to it.
+   No-op off macOS: Windows (WebView2) and Linux (WebKitGTK) deliver these to
+   the page natively, and we must never shadow Ctrl+C (SIGINT) in the shell. */
+function handleClipboardKey(e) {
+  if (!IS_MAC) return false;
+  if (!e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return false;
+  if (!["KeyC", "KeyV", "KeyA"].includes(e.code)) return false;
+
+  // Hand real text fields to the Edit menu. xterm's hidden helper textarea is
+  // not one — it is the focused element whenever the terminal has focus.
+  const el = document.activeElement;
+  if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA") && !el.closest(".xterm")) {
+    return false;
+  }
+
+  const term = activeTerm();
+  if (!term) return false;
+  switch (e.code) {
+    case "KeyC":
+      if (!term.hasSelection()) return false; // nothing selected — let ⌘C pass through
+      navigator.clipboard.writeText(term.getSelection()).catch(() => {});
+      break;
+    case "KeyV":
+      navigator.clipboard.readText().then((text) => { if (text) term.paste(text); }).catch(() => {});
+      break;
+    case "KeyA":
+      term.selectAll();
+      break;
+  }
+  e.preventDefault();
+  return true;
+}
+
 function handleGlobalKey(e) {
   // Escape closes the top-most overlay from anywhere.
   if (e.key === "Escape" && closeTopOverlay()) { e.preventDefault(); return; }
+
+  // macOS ⌘C/⌘V/⌘A in the terminal; text fields go to the Edit menu instead.
+  if (handleClipboardKey(e)) { e.stopImmediatePropagation(); return; }
 
   // While the palette is open, it owns navigation keys.
   if (isPaletteOpen() && handlePaletteKey(e)) return;
