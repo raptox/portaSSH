@@ -57,6 +57,8 @@
         <button id="btn-add" class="primary icon" title="New connection">＋</button>
       </div>
 
+      <div id="tag-filter" class="tag-filter hidden"></div>
+
       <div id="cred-list" class="cred-list"></div>
 
       <div class="sidebar-foot">
@@ -124,6 +126,14 @@
           <div class="field span2 hidden" data-auth="key">
             <label>Key passphrase <span class="hint">(optional)</span></label>
             <input id="c-passphrase" type="password" placeholder="leave blank if none" />
+          </div>
+
+          <div class="field span2">
+            <label>Tags <span class="hint">(work, home, project1 — filter the sidebar by these)</span></label>
+            <div id="tag-edit" class="tag-edit">
+              <input id="c-tags" placeholder="Type a tag, press Enter" autocomplete="off" />
+            </div>
+            <div id="tag-suggest" class="tag-suggest"></div>
           </div>
 
           <div class="field span2">

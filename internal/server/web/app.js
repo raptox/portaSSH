@@ -16,6 +16,8 @@ const state = {
   sessions: new Map(), // tabId -> { term, fit, socket, cred, el, tabEl }
   activeTab: null,
   editingColor: ACCENTS[0],
+  editingTags: [],            // chips in the open editor
+  tagFilter: new Set(),       // lowercased; a host must carry all of them
 };
 
 /* ---------------- API helper ---------------- */
@@ -114,12 +116,10 @@ async function loadCreds() {
 function renderCreds() {
   const q = $("search").value.trim().toLowerCase();
   const list = $("cred-list");
+  renderTagFilter();
   list.innerHTML = "";
 
-  const filtered = state.creds.filter((c) =>
-    !q || c.name.toLowerCase().includes(q) || c.host.toLowerCase().includes(q) ||
-    (c.user || "").toLowerCase().includes(q)
-  );
+  const filtered = state.creds.filter((c) => matchesTags(c) && matchesQuery(c, q));
 
   if (filtered.length === 0) {
     const empty = document.createElement("div");
@@ -133,7 +133,7 @@ function renderCreds() {
   }
 
   // Reordering only makes sense over the full, unfiltered list.
-  const canReorder = !q;
+  const canReorder = !q && state.tagFilter.size === 0;
 
   for (const c of filtered) {
     const el = document.createElement("div");
@@ -145,6 +145,9 @@ function renderCreds() {
       <div class="cred-name"><span class="cred-label">${esc(c.name)}</span><span class="cred-live hidden" title="Session open"></span></div>
       <div class="cred-sub"><span>${esc(c.user)}@</span><span class="sub-host"></span><span>:${c.port}</span><span class="sub-auth"> · ${c.auth === "key" ? "🔑 key" : "🔒 password"}</span></div>
       <div class="cred-actions">
+        <div class="cred-tags">${
+          tagsOf(c).map((t) => `<span class="tag-chip static">${esc(t)}</span>`).join("")
+        }</div>
         ${canReorder ? `<div class="cred-move">
           <button class="cred-arrow" data-dir="up" title="Move up">▲</button>
           <button class="cred-arrow" data-dir="down" title="Move down">▼</button>
@@ -184,6 +187,149 @@ function renderCreds() {
 
   highlightActiveCred();
   fitLabels();
+}
+
+/* ============================================================
+   TAGS
+   Free-form labels on a host, replacing folders: a host can carry
+   several, and selecting more than one narrows the list rather than
+   widening it (work + project1 = hosts that are both).
+   ============================================================ */
+
+// tagsOf returns a credential's tags, tolerating older entries without any.
+function tagsOf(c) { return Array.isArray(c.tags) ? c.tags : []; }
+
+// allTags lists every tag in use, once per spelling, alphabetically.
+function allTags() {
+  const seen = new Map(); // lowercased -> first spelling seen
+  for (const c of state.creds) {
+    for (const t of tagsOf(c)) {
+      const k = t.toLowerCase();
+      if (!seen.has(k)) seen.set(k, t);
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+
+// matchesTags is true when the host carries every selected tag.
+function matchesTags(c) {
+  if (state.tagFilter.size === 0) return true;
+  const own = new Set(tagsOf(c).map((t) => t.toLowerCase()));
+  for (const t of state.tagFilter) if (!own.has(t)) return false;
+  return true;
+}
+
+// matchesQuery searches name, host, user and tags.
+function matchesQuery(c, q) {
+  if (!q) return true;
+  return c.name.toLowerCase().includes(q) ||
+    c.host.toLowerCase().includes(q) ||
+    (c.user || "").toLowerCase().includes(q) ||
+    tagsOf(c).some((t) => t.toLowerCase().includes(q));
+}
+
+// renderTagFilter draws the chip row. It stays hidden until at least one host
+// is tagged, so nothing changes for anyone not using tags.
+function renderTagFilter() {
+  const row = $("tag-filter");
+  const tags = allTags();
+  const known = new Set(tags.map((t) => t.toLowerCase()));
+
+  // A tag can vanish when its last host is edited or deleted.
+  for (const t of [...state.tagFilter]) if (!known.has(t)) state.tagFilter.delete(t);
+
+  row.classList.toggle("hidden", tags.length === 0);
+  row.innerHTML = "";
+  if (tags.length === 0) return;
+
+  for (const t of tags) {
+    const on = state.tagFilter.has(t.toLowerCase());
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "tag-chip" + (on ? " on" : "");
+    chip.textContent = t;
+    chip.title = on ? `Stop filtering by ${t}` : `Show only hosts tagged ${t}`;
+    chip.addEventListener("click", () => {
+      const k = t.toLowerCase();
+      if (state.tagFilter.has(k)) state.tagFilter.delete(k); else state.tagFilter.add(k);
+      renderCreds();
+    });
+    row.appendChild(chip);
+  }
+
+  if (state.tagFilter.size) {
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.className = "tag-chip clear";
+    clear.textContent = "clear";
+    clear.title = "Show every host again";
+    clear.addEventListener("click", () => { state.tagFilter.clear(); renderCreds(); });
+    row.appendChild(clear);
+  }
+}
+
+/* ---- tag chips inside the editor ---- */
+
+// addEditingTag keeps one spelling per tag: if the tag already exists
+// elsewhere, reuse that spelling so "Work" and "work" stay one tag.
+function addEditingTag(raw) {
+  const t = raw.trim().replace(/\s+/g, " ");
+  if (!t) return;
+  const k = t.toLowerCase();
+  if (state.editingTags.some((x) => x.toLowerCase() === k)) return;
+  const existing = allTags().find((x) => x.toLowerCase() === k);
+  state.editingTags.push(existing || t);
+  renderEditingTags();
+}
+
+function removeEditingTag(tag) {
+  state.editingTags = state.editingTags.filter((t) => t !== tag);
+  renderEditingTags();
+}
+
+function renderEditingTags() {
+  const box = $("tag-edit");
+  const input = $("c-tags");
+  for (const chip of [...box.querySelectorAll(".tag-chip")]) chip.remove();
+  for (const t of state.editingTags) {
+    const chip = document.createElement("span");
+    chip.className = "tag-chip on";
+    chip.innerHTML = `${esc(t)}<button type="button" class="tag-x" title="Remove">×</button>`;
+    chip.querySelector(".tag-x").addEventListener("click", () => removeEditingTag(t));
+    box.insertBefore(chip, input);
+  }
+
+  // Offer the tags already in use that this host does not carry yet.
+  const used = new Set(state.editingTags.map((t) => t.toLowerCase()));
+  const suggest = $("tag-suggest");
+  suggest.innerHTML = "";
+  const rest = allTags().filter((t) => !used.has(t.toLowerCase()));
+  suggest.classList.toggle("hidden", rest.length === 0);
+  for (const t of rest) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "tag-chip ghost-chip";
+    chip.textContent = t;
+    chip.title = `Add ${t}`;
+    chip.addEventListener("click", () => addEditingTag(t));
+    suggest.appendChild(chip);
+  }
+}
+
+function initTagInput() {
+  const input = $("c-tags");
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();          // Enter must not submit the form
+      addEditingTag(input.value);
+      input.value = "";
+    } else if (e.key === "Backspace" && input.value === "" && state.editingTags.length) {
+      removeEditingTag(state.editingTags[state.editingTags.length - 1]);
+    }
+  });
+  // Commit whatever is typed when focus leaves, so a half-typed tag is not lost.
+  input.addEventListener("blur", () => { addEditingTag(input.value); input.value = ""; });
+  $("tag-edit").addEventListener("click", (e) => { if (e.target.id !== "c-tags") input.focus(); });
 }
 
 // tabsForCred lists the open tab ids running a given host, in tab order.
@@ -256,6 +402,9 @@ function openEditor(cred) {
   $("modal-error").textContent = "";
   $("btn-delete").classList.toggle("hidden", !isEdit);
   state.editingColor = (cred && cred.color) || ACCENTS[0];
+  state.editingTags = cred ? [...tagsOf(cred)] : [];
+  $("c-tags").value = "";
+  renderEditingTags();
   renderSwatches();
   syncAuthFields();
   $("modal").classList.remove("hidden");
@@ -290,6 +439,8 @@ $("cred-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const err = $("modal-error");
   err.textContent = "";
+  addEditingTag($("c-tags").value); // a tag typed but not yet committed
+  $("c-tags").value = "";
   const payload = {
     id: $("c-id").value || "",
     name: $("c-name").value.trim(),
@@ -301,6 +452,7 @@ $("cred-form").addEventListener("submit", async (e) => {
     privateKey: $("c-key").value,
     passphrase: $("c-passphrase").value,
     color: state.editingColor,
+    tags: state.editingTags,
   };
   try {
     await api("/api/creds", { method: "POST", body: JSON.stringify(payload) });
@@ -1087,7 +1239,7 @@ function buildPaletteItems(query) {
   const match = (s) => !q || s.toLowerCase().includes(q);
 
   const hosts = state.creds
-    .filter((c) => match(c.name) || match(c.host) || match(c.user))
+    .filter((c) => match(c.name) || match(c.host) || match(c.user) || tagsOf(c).some(match))
     .map((c) => ({
       kind: "connect",
       tag: tabsForCred(c.id).length ? "focus" : "connect",
@@ -1267,6 +1419,7 @@ function esc(str) {
   initTheme();           // applies theme + terminal colours from prefs
   initSettings();
   initSidebar();
+  initTagInput();
   initShortcuts();
   await initLock();
 })().catch((e) => {
