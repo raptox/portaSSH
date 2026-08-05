@@ -208,10 +208,19 @@ button.expand-btn {
   display: flex; flex-direction: column; min-height: 0;
 }
 .sidebar-head {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 8px;
   padding: 16px 16px 12px; border-bottom: 1px solid var(--border);
 }
-.sidebar-title { font-weight: 700; letter-spacing: -.01em; flex: 1; }
+.sidebar-title {
+  font-weight: 700; letter-spacing: -.01em; flex: 1;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Header buttons keep their size no matter how narrow the sidebar gets —
+   squeezed icons looked worse than fewer icons. Below the threshold the two
+   optional ones step aside (both still on ⌘, / ⌘L and in the palette) and
+   collapse stays, since it is the way back out. */
+.sidebar-head button.icon { flex: none; width: 34px; height: 34px; font-size: 15px; }
+.app.narrow #btn-settings, .app.narrow #btn-lock { display: none; }
 .search-row { display: flex; gap: 8px; padding: 12px 14px; }
 .search-row input { flex: 1; }
 .cred-list { flex: 1; overflow-y: auto; padding: 4px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
@@ -232,16 +241,27 @@ button.expand-btn {
 .cred.active::before { width: 5px; box-shadow: 0 0 10px var(--accent); }
 .cred.active .cred-name { color: var(--text); }
 .cred-name { font-weight: 700; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
-.cred-sub { color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+/* No text-overflow on JS-fitted labels: fitLabel() cuts them in the middle,
+   and a CSS fallback would only ever show up as an inconsistent end-cut. */
+.cred-label { min-width: 0; overflow: hidden; white-space: nowrap; }
+.cred-sub { color: var(--muted); font-size: 11.5px; margin-top: 3px; overflow: hidden; white-space: nowrap; }
+/* Set by tightenSubs() when the narrowest host line can no longer afford its
+   auth marker; applied to the whole list so every row loses it together. */
+.cred-list.no-auth .sub-auth { display: none; }
+
+/* Actions get their own strip under the host, unrolling on hover, so they
+   never sit on top of the name or the user@host line. */
 .cred-actions {
-  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-  display: flex; align-items: center; gap: 5px;
-  opacity: 0; transition: opacity .12s;
+  display: flex; align-items: center; justify-content: flex-end; gap: 5px;
+  max-height: 0; margin-top: 0; opacity: 0; overflow: hidden;
+  transition: max-height .14s ease, margin-top .14s ease, opacity .12s ease;
 }
-.cred:hover .cred-actions { opacity: 1; }
+.cred:hover .cred-actions, .cred:focus-within .cred-actions {
+  max-height: 30px; margin-top: 9px; opacity: 1;
+}
 .cred-edit {
   background: var(--bg-2); border: 1px solid var(--border);
-  color: var(--muted); border-radius: 7px; padding: 4px 7px; font-size: 11px;
+  color: var(--muted); border-radius: 7px; padding: 0 9px; height: 22px; font-size: 11px;
 }
 .cred-edit:hover { color: var(--text); border-color: var(--border-2); }
 /* Hover-only escape hatch: dial a second session for a host */
@@ -258,10 +278,10 @@ button.expand-btn {
   font-size: 9px; font-weight: 700; line-height: 7px; color: var(--bg);
   display: inline-grid; place-items: center;
 }
-.cred-move { display: flex; flex-direction: column; gap: 2px; }
+.cred-move { display: flex; gap: 4px; }
 .cred-arrow {
   background: var(--bg-2); border: 1px solid var(--border); color: var(--muted);
-  border-radius: 5px; width: 20px; height: 15px; line-height: 1; font-size: 8px;
+  border-radius: 7px; width: 22px; height: 22px; line-height: 1; font-size: 8px;
   display: grid; place-items: center; padding: 0;
 }
 .cred-arrow:hover { color: var(--text); border-color: var(--accent); }
@@ -280,7 +300,7 @@ button.expand-btn {
 .tab.active { background: var(--term-bg); color: var(--text); border-color: var(--border-2); }
 .tab .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
 .tab.connected .dot { background: var(--good); box-shadow: 0 0 8px var(--good); }
-.tab .name { overflow: hidden; text-overflow: ellipsis; }
+.tab .name { overflow: hidden; }
 .tab .close { color: var(--faint); font-size: 15px; line-height: 1; padding: 0 2px; }
 .tab .close:hover { color: var(--danger); }
 

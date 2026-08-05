@@ -142,8 +142,8 @@ function renderCreds() {
     const accent = c.color || ACCENTS[0];
     el.style.setProperty("--accent", accent);
     el.innerHTML = `
-      <div class="cred-name">${esc(c.name)}<span class="cred-live hidden" title="Session open"></span></div>
-      <div class="cred-sub">${esc(c.user)}@${esc(c.host)}:${c.port} · ${c.auth === "key" ? "🔑 key" : "🔒 password"}</div>
+      <div class="cred-name"><span class="cred-label">${esc(c.name)}</span><span class="cred-live hidden" title="Session open"></span></div>
+      <div class="cred-sub"><span>${esc(c.user)}@</span><span class="sub-host"></span><span>:${c.port}</span><span class="sub-auth"> · ${c.auth === "key" ? "🔑 key" : "🔒 password"}</span></div>
       <div class="cred-actions">
         ${canReorder ? `<div class="cred-move">
           <button class="cred-arrow" data-dir="up" title="Move up">▲</button>
@@ -152,6 +152,11 @@ function renderCreds() {
         <button class="cred-new" title="Open a new session (${NEWSESSION_HINT}-click)">＋</button>
         <button class="cred-edit">edit</button>
       </div>`;
+    el.querySelector(".cred-label").dataset.full = c.name;
+    // Only the host may be elided, and it is measured against the whole line.
+    const hostEl = el.querySelector(".sub-host");
+    hostEl.dataset.full = c.host;
+    hostEl.dataset.fitBox = "parent";
     el.querySelector(".cred-new").addEventListener("click", (ev) => {
       ev.stopPropagation();
       openSession(c);
@@ -178,6 +183,7 @@ function renderCreds() {
   }
 
   highlightActiveCred();
+  fitLabels();
 }
 
 // tabsForCred lists the open tab ids running a given host, in tab order.
@@ -450,12 +456,14 @@ function openSession(cred) {
   // Tab button
   const tabEl = document.createElement("div");
   tabEl.className = "tab active";
-  tabEl.innerHTML = `<span class="dot"></span><span class="name">${esc(cred.name)}</span><span class="close">×</span>`;
+  tabEl.innerHTML = `<span class="dot"></span><span class="name"></span><span class="close">×</span>`;
+  tabEl.querySelector(".name").dataset.full = cred.name;
   tabEl.addEventListener("click", (e) => {
     if (e.target.classList.contains("close")) { closeTab(tabId); return; }
     activateTab(tabId);
   });
   $("tabs").appendChild(tabEl);
+  fitLabels(); // a new tab narrows its neighbours
 
   // Terminal pane
   const pane = document.createElement("div");
@@ -562,11 +570,13 @@ function closeTab(tabId, silent) {
   }
   if (state.sessions.size === 0) $("empty-state").classList.remove("hidden");
   highlightActiveCred();
+  fitLabels(); // the remaining tabs just got wider
 }
 
 window.addEventListener("resize", () => {
   const s = state.sessions.get(state.activeTab);
   if (s) s.fit.fit();
+  fitLabels();
 });
 
 /* ============================================================
@@ -845,16 +855,24 @@ function toHex6(c) {
    SIDEBAR  (collapsible + resizable, persisted in prefs)
    ============================================================ */
 const SIDEBAR_MIN = 210, SIDEBAR_MAX = 480, SIDEBAR_DEFAULT = 290;
+// Below this the header can no longer hold the title and all three buttons at
+// full size, so the two optional buttons drop out (see .app.narrow).
+const SIDEBAR_NARROW = 265;
 function clampSidebar(w) {
   w = parseInt(w, 10) || SIDEBAR_DEFAULT;
   return Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, w));
 }
+function setSidebarWidth(w) {
+  document.documentElement.style.setProperty("--sidebar-w", w + "px");
+  $("app").classList.toggle("narrow", w < SIDEBAR_NARROW);
+}
 function refitActive() {
   const s = state.sessions.get(state.activeTab);
   if (s) requestAnimationFrame(() => { try { s.fit.fit(); } catch {} });
+  fitLabels(); // sidebar and tab bar both changed width
 }
 function applySidebar() {
-  document.documentElement.style.setProperty("--sidebar-w", clampSidebar(prefs.sidebarWidth) + "px");
+  setSidebarWidth(clampSidebar(prefs.sidebarWidth));
   const collapsed = !!prefs.sidebarCollapsed;
   $("app").classList.toggle("collapsed", collapsed);
   $("btn-expand").classList.toggle("hidden", !collapsed);
@@ -878,7 +896,7 @@ function initSidebar() {
     if (!dragging) return;
     const w = clampSidebar(e.clientX); // sidebar starts at viewport x=0
     prefs.sidebarWidth = w;
-    document.documentElement.style.setProperty("--sidebar-w", w + "px");
+    setSidebarWidth(w);
     refitActive();
   });
   window.addEventListener("mouseup", () => {
@@ -1153,6 +1171,87 @@ function openHelp() {
     grid.appendChild(row);
   }
   $("help").classList.remove("hidden");
+}
+
+/* ---------------- middle truncation ----------------
+   Host names and user@host lines differ at both ends ("web-01" vs "web-02",
+   ":22" vs ":2222"), so a trailing ellipsis hides exactly the part you need.
+   CSS can only ellipsize an edge, so anything marked with data-full gets cut
+   in the middle by hand instead. */
+
+// squeeze keeps `keep` characters of s, split across both ends. It counts in
+// code points so the 🔑/🔒 in a host line never gets cut in half.
+function squeeze(s, keep) {
+  const cp = Array.from(s);
+  if (keep >= cp.length) return s;
+  if (keep <= 0) return "…";
+  const head = Math.ceil(keep / 2);
+  const tail = keep - head;
+  return cp.slice(0, head).join("") + "…" + (tail ? cp.slice(cp.length - tail).join("") : "");
+}
+
+const measureRange = document.createRange();
+
+// fitsIn measures in fractions of a pixel. scrollWidth/clientWidth are rounded
+// to integers, so a label overflowing by half a pixel reads as "fits" and
+// gets an end-ellipsis from CSS instead of being cut in the middle.
+function fitsIn(box) {
+  measureRange.selectNodeContents(box);
+  return measureRange.getBoundingClientRect().width <= box.getBoundingClientRect().width + 0.01;
+}
+
+// fitLabel shrinks one element's text until it stops overflowing. data-fit-box
+// = "parent" measures the whole surrounding line instead of the element, so a
+// single segment can be sacrificed to keep the rest of the line intact.
+function fitLabel(el) {
+  const full = el.dataset.full;
+  if (full == null) return;
+  const box = el.dataset.fitBox === "parent" ? el.parentElement : el;
+  el.textContent = full;
+  el.removeAttribute("title");
+  if (fitsIn(box)) return;
+
+  // Binary search the longest squeeze that still fits.
+  let lo = 0, hi = full.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    el.textContent = squeeze(full, mid);
+    if (fitsIn(box)) lo = mid; else hi = mid - 1;
+  }
+  el.textContent = squeeze(full, lo);
+  el.title = full; // the hidden middle stays reachable on hover
+}
+
+// tightenSubs is the last resort for the host lines: once a host is squeezed as
+// far as it goes, drop the "· 🔑 key" markers rather than let the line run over
+// and take the port with it. The port is the part you actually need.
+// The decision is collective — one cramped row drops the marker on every row,
+// so the column never shows "· 🔑 key" on one line and nothing on the next.
+function tightenSubs() {
+  const list = $("cred-list");
+  const subs = [...list.querySelectorAll(".cred-sub")];
+  if (!subs.some((s) => !fitsIn(s))) return;
+  list.classList.add("no-auth");
+  for (const s of subs) fitLabel(s.querySelector(".sub-host"));
+}
+
+// The UI font is font-display:swap, so first paint can measure the fallback
+// and land a pixel off once the real font arrives.
+if (document.fonts) document.fonts.ready.then(() => fitLabels());
+
+let fitQueued = false;
+// fitLabels re-cuts every marked label, coalesced to one pass per frame so a
+// sidebar drag does not re-measure on every mousemove.
+function fitLabels() {
+  if (fitQueued) return;
+  fitQueued = true;
+  requestAnimationFrame(() => {
+    fitQueued = false;
+    // Restore what a previous, narrower pass gave up before re-measuring.
+    $("cred-list").classList.remove("no-auth");
+    for (const el of document.querySelectorAll("[data-full]")) fitLabel(el);
+    tightenSubs();
+  });
 }
 
 /* ---------------- util ---------------- */
