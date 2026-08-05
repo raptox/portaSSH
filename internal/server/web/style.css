@@ -244,6 +244,20 @@ button.expand-btn {
   color: var(--muted); border-radius: 7px; padding: 4px 7px; font-size: 11px;
 }
 .cred-edit:hover { color: var(--text); border-color: var(--border-2); }
+/* Hover-only escape hatch: dial a second session for a host */
+.cred-new {
+  background: var(--bg-2); border: 1px solid var(--border); color: var(--muted);
+  border-radius: 7px; width: 22px; height: 22px; font-size: 12px; padding: 0;
+  display: grid; place-items: center;
+}
+.cred-new:hover { color: var(--accent); border-color: var(--accent); }
+/* Quiet marker for "this host already has a session" (count once past one) */
+.cred-live {
+  min-width: 7px; height: 7px; padding: 0 3px; border-radius: 5px;
+  background: var(--good); box-shadow: 0 0 7px var(--good);
+  font-size: 9px; font-weight: 700; line-height: 7px; color: var(--bg);
+  display: inline-grid; place-items: center;
+}
 .cred-move { display: flex; flex-direction: column; gap: 2px; }
 .cred-arrow {
   background: var(--bg-2); border: 1px solid var(--border); color: var(--muted);

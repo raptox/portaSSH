@@ -142,15 +142,20 @@ function renderCreds() {
     const accent = c.color || ACCENTS[0];
     el.style.setProperty("--accent", accent);
     el.innerHTML = `
-      <div class="cred-name">${esc(c.name)}</div>
+      <div class="cred-name">${esc(c.name)}<span class="cred-live hidden" title="Session open"></span></div>
       <div class="cred-sub">${esc(c.user)}@${esc(c.host)}:${c.port} · ${c.auth === "key" ? "🔑 key" : "🔒 password"}</div>
       <div class="cred-actions">
         ${canReorder ? `<div class="cred-move">
           <button class="cred-arrow" data-dir="up" title="Move up">▲</button>
           <button class="cred-arrow" data-dir="down" title="Move down">▼</button>
         </div>` : ""}
+        <button class="cred-new" title="Open a new session (${NEWSESSION_HINT}-click)">＋</button>
         <button class="cred-edit">edit</button>
       </div>`;
+    el.querySelector(".cred-new").addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      openSession(c);
+    });
     el.querySelector(".cred-edit").addEventListener("click", (ev) => {
       ev.stopPropagation();
       openEditor(c);
@@ -163,19 +168,44 @@ function renderCreds() {
         });
       });
     }
-    el.addEventListener("click", () => openSession(c));
+    // Plain click reuses the session we already have; modifier-click (or the
+    // hover ＋) forces a second one.
+    el.addEventListener("click", (ev) => {
+      if (ev.metaKey || ev.ctrlKey) openSession(c);
+      else focusOrOpen(c);
+    });
     list.appendChild(el);
   }
 
   highlightActiveCred();
 }
 
-// highlightActiveCred marks the sidebar host that owns the focused tab.
+// tabsForCred lists the open tab ids running a given host, in tab order.
+function tabsForCred(id) {
+  return [...state.sessions.entries()].filter(([, s]) => s.cred.id === id).map(([tabId]) => tabId);
+}
+
+// focusOrOpen brings an existing session for this host to the front instead of
+// dialling a second one. Repeated clicks cycle through that host's tabs.
+function focusOrOpen(cred) {
+  const tabs = tabsForCred(cred.id);
+  if (tabs.length === 0) { openSession(cred); return; }
+  const i = tabs.indexOf(state.activeTab);
+  activateTab(i === -1 ? tabs[0] : tabs[(i + 1) % tabs.length]);
+}
+
+// highlightActiveCred marks the sidebar host that owns the focused tab and
+// shows which hosts have sessions running.
 function highlightActiveCred() {
   const s = state.sessions.get(state.activeTab);
   const id = s ? s.cred.id : null;
   for (const el of $("cred-list").querySelectorAll(".cred")) {
-    el.classList.toggle("active", id != null && el.dataset.credId === id);
+    const cid = el.dataset.credId;
+    el.classList.toggle("active", id != null && cid === id);
+    const n = tabsForCred(cid).length;
+    const live = el.querySelector(".cred-live");
+    live.textContent = n > 1 ? String(n) : "";
+    live.classList.toggle("hidden", n === 0);
   }
 }
 
@@ -528,9 +558,10 @@ function closeTab(tabId, silent) {
   if (state.activeTab === tabId) {
     const next = [...state.sessions.keys()].pop();
     if (next) activateTab(next);
-    else { state.activeTab = null; if (!silent) $("empty-state").classList.remove("hidden"); highlightActiveCred(); }
+    else { state.activeTab = null; if (!silent) $("empty-state").classList.remove("hidden"); }
   }
   if (state.sessions.size === 0) $("empty-state").classList.remove("hidden");
+  highlightActiveCred();
 }
 
 window.addEventListener("resize", () => {
@@ -896,10 +927,14 @@ function comboDigit(e, n) {
     : (e.altKey && !e.ctrlKey && !e.shiftKey && e.code === code);
 }
 
+// Modifier that forces a second session for an already-connected host.
+const NEWSESSION_HINT = IS_MAC ? "⌘" : "Ctrl";
+
 function kb(macKeys, otherKeys) { return IS_MAC ? macKeys : otherKeys; }
 const SHORTCUTS = [
   ["Command palette · connect", kb(["⌘", "K"], ["Ctrl", "⇧", "K"])],
   ["New connection", kb(["⌘", "E"], ["Ctrl", "⇧", "E"])],
+  ["Second session for a host", kb(["⌘", "click"], ["Ctrl", "click"])],
   ["Next tab", kb(["⌘", "⇧", "]"], ["Ctrl", "⇧", "]"])],
   ["Previous tab", kb(["⌘", "⇧", "["], ["Ctrl", "⇧", "["])],
   ["Jump to tab 1–9", kb(["⌘", "1…9"], ["Alt", "1…9"])],
@@ -1037,11 +1072,12 @@ function buildPaletteItems(query) {
     .filter((c) => match(c.name) || match(c.host) || match(c.user))
     .map((c) => ({
       kind: "connect",
+      tag: tabsForCred(c.id).length ? "focus" : "connect",
       title: c.name,
       sub: `${c.user}@${c.host}:${c.port}`,
       color: c.color || ACCENTS[0],
       letter: (c.name || "?").trim().charAt(0).toUpperCase(),
-      run: () => { closePalette(); openSession(c); },
+      run: () => { closePalette(); focusOrOpen(c); },
     }));
 
   const commands = [
@@ -1075,7 +1111,7 @@ function renderPalette() {
         <div class="pi-title">${esc(it.title)}</div>
         ${it.sub ? `<div class="pi-sub">${esc(it.sub)}</div>` : ""}
       </div>
-      <div class="pi-tag">${it.kind === "connect" ? "connect" : "command"}</div>`;
+      <div class="pi-tag">${it.tag || "command"}</div>`;
     el.addEventListener("mousemove", () => { if (paletteActive !== i) { paletteActive = i; paintPaletteActive(); } });
     el.addEventListener("click", () => it.run());
     list.appendChild(el);
