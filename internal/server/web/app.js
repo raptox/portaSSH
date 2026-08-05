@@ -401,6 +401,7 @@ function openEditor(cred) {
   $("key-hint").textContent = isEdit ? "(leave blank to keep current)" : "";
   $("modal-error").textContent = "";
   $("btn-delete").classList.toggle("hidden", !isEdit);
+  disarmDelete(); // never open the editor with a primed delete button
   state.editingColor = (cred && cred.color) || ACCENTS[0];
   state.editingTags = cred ? [...tagsOf(cred)] : [];
   $("c-tags").value = "";
@@ -433,7 +434,7 @@ $("c-auth").addEventListener("change", syncAuthFields);
 
 $("btn-add").addEventListener("click", () => openEditor(null));
 $("btn-cancel").addEventListener("click", closeEditor);
-function closeEditor() { $("modal").classList.add("hidden"); }
+function closeEditor() { disarmDelete(); $("modal").classList.add("hidden"); }
 
 $("cred-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -463,10 +464,33 @@ $("cred-form").addEventListener("submit", async (e) => {
   }
 });
 
+/* Deleting takes two clicks instead of a confirm() dialog: the bare WKWebView
+   this ships in on macOS has no WKUIDelegate for script dialogs, so confirm()
+   never shows a panel and simply returns false — which silently swallowed
+   every delete. The button arms itself, then disarms after a few seconds. */
+let deleteTimer = null;
+
+function disarmDelete() {
+  clearTimeout(deleteTimer);
+  deleteTimer = null;
+  const btn = $("btn-delete");
+  btn.textContent = "Delete";
+  btn.classList.remove("armed");
+}
+
 $("btn-delete").addEventListener("click", async () => {
   const id = $("c-id").value;
   if (!id) return;
-  if (!confirm("Delete this connection permanently?")) return;
+  const btn = $("btn-delete");
+
+  if (!btn.classList.contains("armed")) {
+    btn.classList.add("armed");
+    btn.textContent = "Click again to delete";
+    deleteTimer = setTimeout(disarmDelete, 4000);
+    return;
+  }
+
+  disarmDelete();
   try {
     await api("/api/creds/" + encodeURIComponent(id), { method: "DELETE" });
     closeEditor();

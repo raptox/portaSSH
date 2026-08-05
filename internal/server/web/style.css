@@ -133,6 +133,8 @@ button.ghost {
 button.ghost:hover { color: var(--text); border-color: var(--border-2); background: var(--panel); }
 button.danger { background: rgba(248,113,113,.12); color: var(--danger); border: 1px solid rgba(248,113,113,.3); padding: 10px 16px; }
 button.danger:hover { background: rgba(248,113,113,.2); }
+/* Armed state for the two-click delete: unmistakably different from idle. */
+button.danger.armed { background: var(--danger); color: #0a0d14; font-weight: 700; }
 button.icon { width: 40px; height: 40px; display: grid; place-items: center; font-size: 18px; padding: 0; }
 button.small-btn { padding: 7px 10px; font-size: 12px; width: 100%; }
 
