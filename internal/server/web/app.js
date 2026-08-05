@@ -138,6 +138,7 @@ function renderCreds() {
   for (const c of filtered) {
     const el = document.createElement("div");
     el.className = "cred";
+    el.dataset.credId = c.id;
     const accent = c.color || ACCENTS[0];
     el.style.setProperty("--accent", accent);
     el.innerHTML = `
@@ -164,6 +165,17 @@ function renderCreds() {
     }
     el.addEventListener("click", () => openSession(c));
     list.appendChild(el);
+  }
+
+  highlightActiveCred();
+}
+
+// highlightActiveCred marks the sidebar host that owns the focused tab.
+function highlightActiveCred() {
+  const s = state.sessions.get(state.activeTab);
+  const id = s ? s.cred.id : null;
+  for (const el of $("cred-list").querySelectorAll(".cred")) {
+    el.classList.toggle("active", id != null && el.dataset.credId === id);
   }
 }
 
@@ -501,6 +513,7 @@ function activateTab(tabId) {
       requestAnimationFrame(() => { s.fit.fit(); s.term.focus(); });
     }
   }
+  highlightActiveCred();
 }
 
 function closeTab(tabId, silent) {
@@ -515,7 +528,7 @@ function closeTab(tabId, silent) {
   if (state.activeTab === tabId) {
     const next = [...state.sessions.keys()].pop();
     if (next) activateTab(next);
-    else { state.activeTab = null; if (!silent) $("empty-state").classList.remove("hidden"); }
+    else { state.activeTab = null; if (!silent) $("empty-state").classList.remove("hidden"); highlightActiveCred(); }
   }
   if (state.sessions.size === 0) $("empty-state").classList.remove("hidden");
 }

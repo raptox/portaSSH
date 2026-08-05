@@ -43,7 +43,6 @@
   <!-- ============ MAIN APP ============ -->
   <div id="app" class="app hidden">
     <div id="resize-handle" class="resize-handle" title="Drag to resize · double-click to reset"></div>
-    <button id="btn-expand" class="ghost icon expand-btn hidden" title="Show sidebar">»</button>
     <aside class="sidebar">
       <div class="sidebar-head">
         <img class="brand-mark small" src="icon.svg" alt="PortaSSH" />
@@ -68,7 +67,10 @@
     </aside>
 
     <main class="main">
-      <div id="tabs" class="tabs"></div>
+      <div class="tabbar">
+        <button id="btn-expand" class="ghost expand-btn hidden" title="Show sidebar">»</button>
+        <div id="tabs" class="tabs"></div>
+      </div>
       <div id="terminals" class="terminals">
         <div id="empty-state" class="empty-state">
           <div class="empty-glyph">❯_</div>
